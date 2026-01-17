@@ -38,3 +38,12 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Database (H2) ###
+*.db
+*.mv.db
+*.trace.db
+
+### OS Files ###
+.DS_Store
+Thumbs.db
