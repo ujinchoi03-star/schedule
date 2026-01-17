@@ -1,0 +1,6 @@
+@import "tailwindcss";
+/* Edge / Chrome 기본 비밀번호 눈 아이콘 제거 */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
