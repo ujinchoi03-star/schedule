@@ -10,11 +10,12 @@ import json
 import traceback
 
 # ==========================================
-# ⚙️ 설정
+# ⚙️ 설정 (디버깅 크롬 연결)
 # ==========================================
 def setup_driver():
     chrome_options = Options()
-    # 실행 중인 디버깅 크롬 포트 (9222)에 연결
+    # 🚨 실행 전 CMD에서 크롬 디버깅 모드 실행 필수:
+    # chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\selenium\ChromeProfile"
     chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
     driver = webdriver.Chrome(options=chrome_options)
     return driver
@@ -23,174 +24,164 @@ def setup_driver():
 # 🕷️ 메인 로직
 # ==========================================
 def main():
+    driver = None
+    all_lectures = []
+    unique_ids = set() # 중복 방지
+
     try:
         driver = setup_driver()
-        print("✅ 크롬 브라우저 연결 성공!")
+        print("✅ 디버깅 크롬 브라우저 연결 성공!")
 
+        # 1. 프레임 진입
         try:
             driver.switch_to.default_content()
-            WebDriverWait(driver, 5).until(EC.frame_to_be_available_and_switch_to_it("Main"))
-            WebDriverWait(driver, 5).until(EC.frame_to_be_available_and_switch_to_it("coreMain"))
-            print("🚪 [Main > coreMain] 진입 성공!")
+            WebDriverWait(driver, 2).until(EC.frame_to_be_available_and_switch_to_it("Main"))
+            WebDriverWait(driver, 2).until(EC.frame_to_be_available_and_switch_to_it("coreMain"))
+            print("🚪 프레임 진입 완료")
         except:
-            print("⚠️ 프레임 진입 실패 (계속 진행)")
+            pass
 
-        all_lectures = []
+        # 2. [1단계] 이수구분 목록 가져오기
+        cour_select = Select(driver.find_element(By.ID, 'pCourDiv'))
+        # '선택' 제외하고 실제 값만 추출
+        cour_options = [opt for opt in cour_select.options if opt.get_attribute("value")]
+        
+        print(f"🔎 총 {len(cour_options)}개의 이수구분을 탐색합니다.")
 
-        targets = {
-            '00': '전공', 
-            '24': '학문의기초', 
-            '01': '교양', 
-            '30': '교직', 
-            '41': '군사학', 
-            '71': '평생교육사'
-        }
+        # -------------------------------------------------------
+        # 🔁 메인 루프: 이수구분 하나씩 도장깨기
+        # -------------------------------------------------------
+        for opt in cour_options:
+            cour_val = opt.get_attribute("value")
+            cour_text = opt.text.strip()
+            
+            # (1) 이수구분 변경
+            Select(driver.find_element(By.ID, 'pCourDiv')).select_by_value(cour_val)
+            time.sleep(1.5) # ⚠️ 중요: 화면 갱신될 때까지 충분히 대기
 
-        for div_code, div_name in targets.items():
-            try:
-                cour_div = Select(driver.find_element(By.ID, 'pCourDiv'))
-                cour_div.select_by_value(div_code)
-                print(f"\n🚀 [ {div_name} ({div_code}) ] 선택됨")
-                time.sleep(1.5)
-            except Exception as e:
-                print(f"🚨 '{div_name}' 선택 실패: {e}")
-                continue
+            print(f"\n📂 [1단계] {cour_text} ({cour_val}) 진입...")
 
-            if div_code in ['30', '41', '71']:
-                print(f"  ⚡ {div_name} -> 바로 조회")
-                click_search_and_parse(driver, div_name, "전체", "전체", all_lectures)
-                continue
+            # (2) 화면 상태 동적 감지
+            # 화면에 단과대/영역 칸이 보여도, 안에 옵션이 '선택' 하나뿐이면 사실상 없는 것 취급해야 함
+            group_elem = driver.find_element(By.ID, 'pGroupCd')
+            col_elem = driver.find_element(By.ID, 'pCol')
+            
+            # --- CASE A: 교양 영역(pGroupCd)이 유효한가? ---
+            if group_elem.is_displayed() and len(Select(group_elem).options) > 1:
+                group_select = Select(group_elem)
+                # '선택' 제외 유효 옵션만
+                group_opts = [o for o in group_select.options if o.get_attribute("value")]
+                
+                for g_opt in group_opts:
+                    g_val = g_opt.get_attribute("value")
+                    g_text = g_opt.text.strip()
+                    
+                    Select(driver.find_element(By.ID, 'pGroupCd')).select_by_value(g_val)
+                    time.sleep(0.5)
+                    
+                    print(f"   📘 [영역] {g_text} 조회")
+                    click_search_and_parse(driver, cour_text, "교양", g_text, all_lectures, unique_ids)
 
-            elif div_code == '01':
-                try:
-                    group_select = Select(driver.find_element(By.ID, 'pGroupCd'))
-                    for i in range(0, len(group_select.options)):
-                        try:
-                            group_select = Select(driver.find_element(By.ID, 'pGroupCd'))
-                            group_name = group_select.options[i].text
+            # --- CASE B: 단과대(pCol)가 유효한가? ---
+            elif col_elem.is_displayed() and len(Select(col_elem).options) > 1:
+                col_select = Select(col_elem)
+                col_opts = [o for o in col_select.options if o.get_attribute("value")]
+
+                for c_opt in col_opts:
+                    c_val = c_opt.get_attribute("value")
+                    c_text = c_opt.text.strip()
+
+                    Select(driver.find_element(By.ID, 'pCol')).select_by_value(c_val)
+                    time.sleep(0.5)
+                    print(f"   🏫 [단과대] {c_text}")
+
+                    # (3) 학과(pDept) 체크
+                    dept_elem = driver.find_element(By.ID, 'pDept')
+                    if dept_elem.is_displayed() and len(Select(dept_elem).options) > 1:
+                        dept_select = Select(dept_elem)
+                        dept_opts = [d for d in dept_select.options if d.get_attribute("value")]
+                        
+                        for d_opt in dept_opts:
+                            d_val = d_opt.get_attribute("value")
+                            d_text = d_opt.text.strip()
                             
-                            if "선택" in group_name and len(group_name) < 5: continue
+                            Select(driver.find_element(By.ID, 'pDept')).select_by_value(d_val)
+                            time.sleep(0.3)
+                            click_search_and_parse(driver, cour_text, c_text, d_text, all_lectures, unique_ids)
+                    else:
+                        # 학과가 없으면 단과대 전체 조회
+                        print(f"      ㄴ 학과 세부 없음 -> 바로 조회")
+                        click_search_and_parse(driver, cour_text, c_text, "전체", all_lectures, unique_ids)
 
-                            group_select.select_by_index(i)
-                            print(f"  📘 영역: {group_name}")
-                            time.sleep(1.5) 
-                            loop_departments(driver, div_name, group_name, all_lectures)
-                        except:
-                            continue
-                except:
-                    pass
-
+            # --- CASE C: 하위 분류가 아무것도 없음 (군사학, 평생교육사 등) ---
             else:
-                try:
-                    col_select = Select(driver.find_element(By.ID, 'pCol'))
-                    for i in range(0, len(col_select.options)):
-                        try:
-                            col_select = Select(driver.find_element(By.ID, 'pCol'))
-                            col_name = col_select.options[i].text
-                            
-                            if "선택" in col_name and len(col_name) < 5: continue
+                print(f"   ⚡ 하위 분류 없음 -> 즉시 '조회' 버튼 클릭!")
+                click_search_and_parse(driver, cour_text, "기타", "전체", all_lectures, unique_ids)
 
-                            col_select.select_by_index(i)
-                            print(f"  🏫 단과대: {col_name}")
-                            time.sleep(1.5) 
-                            loop_departments(driver, div_name, col_name, all_lectures)
-                        except:
-                            continue
-                except:
-                    pass
-
+        # 최종 저장
         save_to_json(all_lectures)
 
     except Exception:
         traceback.print_exc()
 
-def loop_departments(driver, category, sub_category, results):
+
+# ==========================================
+# 🔍 공통: 조회 버튼 클릭 및 데이터 파싱
+# ==========================================
+def click_search_and_parse(driver, category, college, dept, results, unique_ids):
     try:
-        if len(driver.find_elements(By.ID, 'pDept')) == 0:
-            click_search_and_parse(driver, category, sub_category, "전체", results)
-            return
+        # 조회 버튼 클릭 (JavaScript 실행이 더 안정적)
+        search_btn = driver.find_element(By.ID, 'btnSearch')
+        driver.execute_script("arguments[0].click();", search_btn)
+        
+        # 데이터 로딩 대기
+        time.sleep(1.5)
 
-        dept_select = Select(driver.find_element(By.ID, 'pDept'))
-        options_len = len(dept_select.options)
-
-        if options_len <= 1:
-            click_search_and_parse(driver, category, sub_category, "전체", results)
-            return
-
-        for j in range(0, options_len):
-            try:
-                dept_select = Select(driver.find_element(By.ID, 'pDept'))
-                dept_name = dept_select.options[j].text
-                
-                if ("선택" in dept_name or "전체" in dept_name) and len(dept_name) < 10: 
-                    continue
-
-                dept_select.select_by_index(j)
-                time.sleep(0.5) 
-                click_search_and_parse(driver, category, sub_category, dept_name, results)
-            except:
-                continue
-
-    except Exception:
-        click_search_and_parse(driver, category, sub_category, "전체(Fallback)", results)
-
-def click_search_and_parse(driver, category, college, dept, results):
-    try:
-        driver.find_element(By.ID, 'btnSearch').click()
-        time.sleep(2.0) 
-
+        # BS4 파싱
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        rows = soup.select('table tbody tr')
+        rows = soup.select('#gridLecture > tbody > tr')
 
         if not rows: return
+        # '데이터가 없습니다' 처리
         if len(rows) == 1 and ("없습니다" in rows[0].text or "No data" in rows[0].text):
             return
 
         count = 0
-        for idx, row in enumerate(rows):
+        for row in rows:
             try:
                 cols = row.find_all('td')
                 if len(cols) < 8: continue
 
-                course_id = cols[1].text.strip()
-                section = cols[2].text.strip()
-                
+                course_id = cols[1].get_text(strip=True)
+                section = cols[2].get_text(strip=True)
+                full_id = f"{course_id}-{section}" # ID 생성
+
+                if full_id in unique_ids: continue # 중복 제거
+                unique_ids.add(full_id)
+
+                # 강의명 및 상세정보
                 name_cell = cols[5]
                 name = name_cell.get_text(strip=True)
                 
-                # -------------------------------------------------
-                # 🌟 [수정] 강의 특징(MOOC, 영강, 외국어) 추출 로직
-                # -------------------------------------------------
                 details = []
-
-                # 1. MOOC 라벨 체크 (HTML 태그 확인)
                 if name_cell.find('span', class_='label-type', string='M'):
                     details.append("MOOC")
-                    if name.endswith('M'): name = name[:-1]
-                
-                # 2. 영강 체크 (이름에 포함 여부)
-                if "영강" in name:
-                    details.append("영강")
-                
-                # 3. 외국어강의 체크
-                if "외국어강의" in name:
-                    details.append("외국어강의")
+                    if name.endswith('M'): name = name[:-1].strip()
+                if "영강" in name: details.append("영강")
+                if "외국어" in name: details.append("외국어강의")
 
-                # -------------------------------------------------
-
-                credit_raw = cols[7].text.strip() 
-                credit = 0.0
+                prof = cols[6].get_text(strip=True)
+                
+                # 학점 처리 '3(3)' -> 3.0
                 try:
-                    credit_str = credit_raw.split('(')[0].strip()
-                    credit = float(credit_str)
+                    credit = float(cols[7].get_text(strip=True).split('(')[0])
                 except:
                     credit = 0.0
-                
-                time_room = cols[8].get_text(separator=" ").strip()
-                prof = cols[6].text.strip() if len(cols) > 6 else ""
+
+                time_room = cols[8].get_text(separator=" ", strip=True)
 
                 lecture = {
-                    "id": f"{course_id}-{section}",
+                    "id": full_id,
                     "name": name,
                     "professor": prof,
                     "credit": credit,
@@ -198,7 +189,7 @@ def click_search_and_parse(driver, category, college, dept, results):
                     "category": category,
                     "college": college,
                     "department": dept,
-                    "details": ",".join(details), # 예: "MOOC,영강"
+                    "details": ",".join(details),
                     "year": 2025,
                     "semester": 1
                 }
@@ -211,13 +202,13 @@ def click_search_and_parse(driver, category, college, dept, results):
             print(f"      ✅ {count}건 수집 완료 ({dept})")
 
     except Exception as e:
-        print(f"      ❌ 검색/파싱 실패 ({dept}): {e}")
+        print(f"      ❌ 조회 중 에러: {e}")
 
 def save_to_json(data):
     filename = 'real_lectures_korea.json'
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    print(f"\n🎉 크롤링 최종 완료! 총 {len(data)}개 강의 저장됨.")
+    print(f"\n🎉 크롤링 종료! 총 {len(data)}개 강의 저장됨.")
 
 if __name__ == "__main__":
     main()
