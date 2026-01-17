@@ -1,69 +1,41 @@
-### 1. [사전 준비] 전체 강의 목록 조회
-# 여기서 테스트할 강의 ID들을 찾아두세요.
-# 1) 전공 수업 ID 3개 (예: "100", "101", "102")
-# 2) 교양 수업 ID 2개 (예: "200", "201")
-GET http://localhost:8080/api/timetable/courses
-Accept: application/json
+### 1. 회원가입 테스트 (계정 만들기)
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
 
-### 2. [전공 바구니 테스트] "전공 후보 3개 중 2개는 꼭 넣어줘"
-# 전공 후보군(mustHaveMajorIds)에 3개를 넣고, 최소 개수(min)를 2로 설정합니다.
+{
+  "email": "test@korea.ac.kr",
+  "password": "password1234",
+  "nickname": "아기호랑이"
+}
+
+### 2. 로그인 테스트 (토큰 발급받기)
+# 로그인이 성공하면 자동으로 토큰을 변수(auth_token)에 저장합니다.
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@korea.ac.kr",
+  "password": "password1234"
+}
+
+> {%
+    client.global.set("auth_token", response.body.token);
+    client.log("🔑 토큰이 발급되어 저장되었습니다: " + response.body.token);
+%}
+
+### 3. 시간표 생성 요청 (로그인한 사용자만 가능)
 POST http://localhost:8080/api/timetable/generate
 Content-Type: application/json
+Authorization: Bearer {{auth_token}}
 
 {
   "maxGapHours": 3,
-  "preferredDays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  "targetCredit": 15,
-  "minRating": 0.0,
-  "onlyMajor": false,
-  "avoidKeywords": [],
-  "excludeNoTime": false,
-
-  "mustHaveMajorIds": ["36", "21", "16"],
-  "minMustHaveMajorCount": 2,
-
-  "mustHaveGeneralIds": [],
-  "minMustHaveGeneralCount": 0
-}
-
-### 3. [교양 바구니 테스트] "교양 후보 3개 중 1개는 꼭 넣어줘"
-# 교양 후보군(mustHaveGeneralIds)에 3개를 넣고, 최소 개수(min)를 1로 설정합니다.
-POST http://localhost:8080/api/timetable/generate
-Content-Type: application/json
-
-{
-  "maxGapHours": 3,
-  "preferredDays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-  "targetCredit": 15,
-  "minRating": 0.0,
-  "onlyMajor": false,
-  "avoidKeywords": [],
-  "excludeNoTime": false,
-
-  "mustHaveMajorIds": [],
-  "minMustHaveMajorCount": 0,
-
-  "mustHaveGeneralIds": ["2001", "2002", "2003"],
-  "minMustHaveGeneralCount": 1
-}
-
-### 4. [종합 테스트] "전공 5개 중 3개 + 교양 3개 중 2개 넣어줘"
-# 가장 복잡한 시나리오입니다. 두 조건이 모두 만족되어야 시간표가 나옵니다.
-POST http://localhost:8080/api/timetable/generate
-Content-Type: application/json
-
-{
-  "maxGapHours": 4,
-  "preferredDays": ["Mon", "Tue", "Wed", "Thu", "Fri"],
   "targetCredit": 18,
-  "minRating": 0.0,
+  "minRating": 3.0,
   "onlyMajor": false,
-  "avoidKeywords": [],
-  "excludeNoTime": false,
-
-  "mustHaveMajorIds": ["1001", "1002", "1003", "1004", "1005"],
-  "minMustHaveMajorCount": 3,
-
-  "mustHaveGeneralIds": ["2001", "2002", "2003"],
-  "minMustHaveGeneralCount": 2
+  "excludeNoTime": true,
+  "avoidKeywords": ["영어", "발표"],
+  "wantedDayOffs": ["Fri"],
+  "mustHaveIds": [],
+  "minMajorCredit": 9
 }
