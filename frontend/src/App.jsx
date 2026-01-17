@@ -16,23 +16,17 @@ export default function App() {
   // ✅ 취향 수정이 '마이페이지에서 왔는지' 추적용
   const [prefsReturnTo, setPrefsReturnTo] = useState("home"); // "home" | "mypage"
 
+  // App.jsx 내의 handleLogin 함수
   const handleLogin = (loggedInUser) => {
     setUser(loggedInUser);
 
-    // 1) 학교/학과 없으면 온보딩
-    if (!loggedInUser?.university || !loggedInUser?.department || !loggedInUser?.grade) {
+    // 🌟 모든 정보(학교, 학과, 학년)가 이미 백엔드에 저장되어 있는 유저라면 바로 홈으로!
+    // 하나라도 비어있다면 온보딩으로 보냅니다.
+    if (loggedInUser?.university && loggedInUser?.department && loggedInUser?.grade) {
+      setPage("home");
+    } else {
       setPage("onboarding");
-      return;
     }
-
-    // 2) 취향 없으면 (첫 로그인 등) 취향 설정 강제
-    if (!loggedInUser?.preferences) {
-      setPrefsReturnTo("home");
-      setPage("preferences");
-      return;
-    }
-
-    setPage("home");
   };
 
   const handleLogout = () => {

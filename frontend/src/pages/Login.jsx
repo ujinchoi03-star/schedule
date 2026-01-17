@@ -1,8 +1,9 @@
-import { useState } from "react"; // 화면에서 상태를 기억하게 해주는 react 기능
-import { Calendar, Clock, BookOpen, Eye, EyeOff, AlertCircle } from "lucide-react"; // 아이콘 라이브러리
+import { useState } from "react";
+import { Calendar, Clock, BookOpen, Eye, EyeOff, AlertCircle } from "lucide-react";
+import axios from "axios";
 
-export default function Login({ onLogin }) { // onLogin은 로그인 성공하면 다음 페이지로 이동하는 함수
-  const [isSignUp, setIsSignUp] = useState(false); // false면 로그인 모드
+export default function Login({ onLogin }) {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -10,93 +11,77 @@ export default function Login({ onLogin }) { // onLogin은 로그인 성공하�
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  // 이메일 형식 체크 (단순 @ 포함 여부보다 정확한 정규식)
+
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  // 비밀번호 형식 체크 (영어, 숫자 포함 8자 이상)
-  const isPasswordValid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
-
-  // 비밀번호 일치 체크 (비어있지 않고, 비밀번호와 일치하는지)
+  const isPasswordValid = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password);
   const isConfirmValid = passwordConfirm.length > 0 && password === passwordConfirm;
 
-  // 색상 결정 함수 (상태에 따라 색상 클래스 반환)
   const getValidationColor = (value, isValid) => {
-    if (!value) return "text-gray-400"; // 입력 전: 회색
-    return isValid ? "text-blue-500" : "text-red-500"; // 조건 맞으면 파랑, 아니면 빨강
+    if (!value) return "text-gray-400";
+    return isValid ? "text-blue-500" : "text-red-500";
   };
 
-  // 모든 회원가입 조건이 충족되었는지 확인
   const isFormValid = isEmailValid && isPasswordValid && isConfirmValid && name.trim() !== "";
-
-  // 로그인 모드일 때는 아이디와 비밀번호만 있으면 됨
   const canSubmit = isSignUp ? isFormValid : (email && password);
 
-  const handleSubmit = (e) => {
-    e.preventDefault(); // 폼 제출 시 페이지 새로고침 방지
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setPasswordConfirm("");
+    setName("");
+    setError(""); // 👈 에러 메시지 삭제가 핵심!
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setError("");
 
-    // 이미 존재하는 아이디입니다, 비밀번호 조건 이런거 추가하기
-    if (!email || !password) {
-      setError("아이디와 비밀번호를 입력해주세요.");
-      return;
-    }
+    try {
+      if (isSignUp) {
+        // [회원가입]
+        await axios.post("http://localhost:8080/api/auth/signup", {
+          email: email,
+          password: password,
+          nickname: name,
+        });
 
-    if (!email) {
-        setError("아이디를 입력해주세요.");
-        return;
-    }
-
-    if (!password) {
-      setError("비밀번호를 입력해주세요.");
-      return;
-    }   
-
-    /*if (isSignUp && !name) {
-      setError("이름을 입력해주세요.");
-      return;
-    }
-
-    if (isSignUp && !email) {
-      setError("아이디를 입력해주세요.");
-      return;
-    }
-
-    if (isSignUp && !password) {
-      setError("비밀번호를 입력해주세요.");
-      return;
-    }
-
-    if (isSignUp && (password !== passwordConfirm)) {
-      setError("비밀번호가 일치하지 않습니다.");
-      return;
-    }
-    */
-
-    // TODO: 나중에 백엔드 API 붙일 자리
-    // 지금은 더미 사용자 만들어지는거임
-    // 회원가입 성공(더미)
-    if (isSignUp) {
         alert("회원가입 성공! 이제 로그인해주세요.");
+        setIsSignUp(false); 
+        resetForm(); 
+      // Login.jsx 내의 handleSubmit 함수 내부 else 블록
+      } else {
+        // [로그인]
+        const response = await axios.post("http://localhost:8080/api/auth/login", {
+          email: email,
+          password: password,
+        });
+        
+        // 🌟 백엔드에서 추가한 필드들을 응답에서 구조 분해 할당으로 가져옵니다.
+        const { token, nickname, university, department, grade } = response.data;
+        localStorage.setItem("accessToken", token);
 
-        // 상태 초기화
-        setIsSignUp(false);
-        setPassword("");
-        setPasswordConfirm("");
-        setEmail("");
-        setName("");
-        setError("");
+        // 🌟 onLogin에 이 정보들을 모두 담아서 보냅니다.
+        onLogin({
+          name: nickname,
+          email: email,
+          university: university, // 추가
+          department: department, // 추가
+          grade: grade           // 추가
+        });
+      }
+    } catch (err) {
+      if (!err.response) {
+        setError("서버와 연결할 수 없습니다. 서버가 켜져 있는지 확인하세요.");
+        return;
+      }
 
-        return; 
+      if (isSignUp) {
+        // 백엔드에서 중복 시 보통 400(Bad Request)이나 500을 줍니다.
+        setError("이미 존재하는 아이디입니다.");
+      } else {
+        setError("아이디 또는 비밀번호가 올바르지 않습니다.");
+      }
     }
-
-    // 로그인 성공(더미)
-    const dummyUser = {
-      name: "홍길동",
-      //university: "서울대학교",
-      //department: "컴퓨터공학과",
-      email,
-    };
-    onLogin(dummyUser);  // App.jsx로 사용자 정보 전달해서 다음 화면으로 이동
   };
 
   return ( //화면을 그리는 부분
@@ -180,7 +165,10 @@ export default function Login({ onLogin }) { // onLogin은 로그인 성공하�
               <div className="flex gap-2 mb-6">
                 <button
                   type="button"
-                  onClick={() => setIsSignUp(false)} // 클릭하면 로그인으로 상태 변경 
+                  onClick={() => {
+                    setIsSignUp(false); // 로그인 모드로 변경
+                    resetForm();        // 폼 초기화 함수 호출
+                  }}
                   className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${
                     !isSignUp
                       ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md"
@@ -191,7 +179,10 @@ export default function Login({ onLogin }) { // onLogin은 로그인 성공하�
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsSignUp(true)}
+                  onClick={() => {
+                    setIsSignUp(true);  // 회원가입 모드로 변경
+                    resetForm();        // 폼 초기화 함수 호출
+                  }}
                   className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${
                     isSignUp
                       ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md"

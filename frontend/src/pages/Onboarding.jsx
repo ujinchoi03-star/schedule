@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { universities } from "../data/universities";
 import { Search, Check, ArrowLeft } from "lucide-react";
+import axios from "axios";
 
 export function OnboardingPage({ user, onComplete, onBack }) {
   const [selectedUniversity, setSelectedUniversity] = useState(null);
@@ -30,10 +31,29 @@ export function OnboardingPage({ user, onComplete, onBack }) {
     setDepartmentSearch("");
   };
 
-  const handleSubmit = (e) => {
+  // Onboarding.jsx의 handleSubmit 수정
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (selectedUniversity && selectedDepartment && grade !== null) {
-      onComplete(selectedUniversity.name, selectedDepartment, grade);
+      try {
+        // 1. 서버에 저장 요청
+        await axios.patch("http://localhost:8080/api/auth/onboarding", {
+          university: selectedUniversity.name,
+          department: selectedDepartment,
+          grade: grade
+        }, {
+          headers: {
+            // 입장권(토큰)을 함께 보냅니다.
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        });
+
+        // 2. 성공하면 부모 컴포넌트에 알림
+        onComplete(selectedUniversity.name, selectedDepartment, grade);
+      } catch (err) {
+        console.error("온보딩 저장 실패:", err);
+        alert("정보 저장 중 오류가 발생했습니다.");
+      }
     }
   };
 

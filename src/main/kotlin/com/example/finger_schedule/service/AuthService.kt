@@ -9,6 +9,7 @@ import com.example.finger_schedule.security.JwtTokenProvider
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import com.example.finger_schedule.dto.OnboardingRequest
 
 @Service
 class AuthService(
@@ -47,6 +48,23 @@ class AuthService(
         }
 
         val token = jwtTokenProvider.createToken(user.email)
-        return LoginResponse(token = token, nickname = user.nickname)
+        return LoginResponse(
+            token = token,
+            nickname = user.nickname,
+            university = user.university, // DB에서 꺼내온 학교
+            department = user.department, // DB에서 꺼내온 학과
+            grade = user.grade            // DB에서 꺼내온 학년
+        )
+    }
+
+    @Transactional
+    fun updateOnboarding(email: String, request: OnboardingRequest) {
+        val user = userRepository.findByEmail(email)
+            .orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        
+        user.university = request.university
+        user.department = request.department
+        user.grade = request.grade
+        // @Transactional이 붙어있어서 자동으로 저장(Dirty Checking)됩니다.
     }
 }

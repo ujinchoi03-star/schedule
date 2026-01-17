@@ -16,5 +16,10 @@ class User(
     val password: String,
 
     @Column(nullable = false)
-    val nickname: String
+    val nickname: String,
+
+    // ✨ 아래 3줄을 추가하세요 (null 허용으로 시작하는 게 가입 시 편합니다)
+    var university: String? = null,
+    var department: String? = null,
+    var grade: Int? = null
 )
