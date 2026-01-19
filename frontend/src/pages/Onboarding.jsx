@@ -1,260 +1,135 @@
-import { useState, useMemo } from "react";
-import { universities } from "../data/universities";
-import { Search, Check, ArrowLeft } from "lucide-react";
-import axios from "axios";
+import { useState } from "react";
+import { Check, School, GraduationCap, User } from "lucide-react";
+import api from '../api/axios'; // ✅ 우리가 만든 API 도구
 
-export function OnboardingPage({ user, onComplete, onBack }) {
+// 🏫 지원하는 학교 목록 (서버 코드와 매칭)
+const AVAILABLE_UNIVERSITIES = [
+  { name: "고려대학교", code: "KOREA", color: "bg-red-50 text-red-700 border-red-200" },
+  { name: "한양대학교", code: "HANYANG", color: "bg-blue-50 text-blue-700 border-blue-200" }
+];
+
+export function OnboardingPage({ user, onComplete }) {
   const [selectedUniversity, setSelectedUniversity] = useState(null);
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [universitySearch, setUniversitySearch] = useState("");
-  const [departmentSearch, setDepartmentSearch] = useState("");
+  const [department, setDepartment] = useState(""); // 직접 입력받음
   const [grade, setGrade] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 학교 검색 결과
-  const filteredUniversities = useMemo(() => {
-    if (!universitySearch.trim()) return universities;
-    const search = universitySearch.toLowerCase().trim();
-    return universities.filter((uni) => uni.name.toLowerCase().includes(search));
-  }, [universitySearch]);
-
-  // 학과 검색 결과
-  const filteredDepartments = useMemo(() => {
-    if (!selectedUniversity) return [];
-    if (!departmentSearch.trim()) return selectedUniversity.departments;
-    const search = departmentSearch.toLowerCase().trim();
-    return selectedUniversity.departments.filter((dept) => dept.toLowerCase().includes(search));
-  }, [selectedUniversity, departmentSearch]);
-
-  const handleUniversitySelect = (uni) => {
-    setSelectedUniversity(uni);
-    setSelectedDepartment("");
-    setDepartmentSearch("");
-  };
-
-  // Onboarding.jsx의 handleSubmit 수정
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (selectedUniversity && selectedDepartment && grade !== null) {
-      try {
-        // 1. 서버에 저장 요청
-        await axios.patch("http://localhost:8080/api/auth/onboarding", {
-          university: selectedUniversity.name,
-          department: selectedDepartment,
-          grade: grade
-        }, {
-          headers: {
-            // 입장권(토큰)을 함께 보냅니다.
-            Authorization: `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
+    if (!selectedUniversity || !department || !grade) return;
 
-        // 2. 성공하면 부모 컴포넌트에 알림
-        onComplete(selectedUniversity.name, selectedDepartment, grade);
-      } catch (err) {
-        console.error("온보딩 저장 실패:", err);
-        alert("정보 저장 중 오류가 발생했습니다.");
-      }
+    try {
+      setIsSubmitting(true);
+
+      // ✅ [백엔드 연결] 회원 정보 업데이트 요청
+      // 이 요청을 보내면 DB의 users 테이블에 학교, 학과, 학년이 저장됩니다.
+      await api.patch('/auth/onboarding', {
+        university: selectedUniversity.code, // "KOREA" or "HANYANG"
+        department: department,              // 유저가 입력한 텍스트
+        grade: grade
+      });
+
+      console.log("✅ 정보 저장 완료:", selectedUniversity.code, department);
+
+      // 다음 단계로 이동
+      onComplete(selectedUniversity.code, department, grade);
+
+    } catch (error) {
+      console.error("정보 저장 실패:", error);
+      alert("정보 저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
-      <div className="w-full max-w-4xl">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            환영합니다, {user?.name}님!
-          </h2>
-          <p className="text-gray-600">학교와 학과 정보를 입력해주세요</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              반가워요, {user?.name || "학생"}님! 👋
+            </h2>
+            <p className="text-gray-600">시간표 생성을 위해 학교 정보를 입력해주세요.</p>
+          </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white border border-gray-200 rounded-2xl shadow-lg p-8"
-        >
-          {/* ✅ 좌/우 박스 높이 맞추기: items-stretch + 각 컬럼을 같은 높이 컨테이너로 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-            {/* 학교 선택 */}
-            <div className="flex flex-col lg:h-[520px]">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                1. 학교 검색 및 선택
+          <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8 space-y-8">
+
+            {/* 1. 학교 선택 (버튼형) */}
+            <div>
+              <label className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <School className="size-4 text-blue-600"/> 학교 선택
               </label>
-
-              {/* ✅ 아래 영역이 같은 높이로 맞춰지도록 flex-1 */}
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* 학교 검색창 */}
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={universitySearch}
-                    onChange={(e) => setUniversitySearch(e.target.value)}
-                    placeholder="학교 이름을 검색하세요"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  />
-                </div>
-
-                {/* 선택된 학교 표시 */}
-                {selectedUniversity && (
-                  <div className="mb-4 p-4 bg-blue-50 border-2 border-blue-600 rounded-lg flex items-center justify-between">
-                    <div>
-                      <div className="text-sm text-blue-600 font-medium mb-1">
-                        선택된 학교
-                      </div>
-                      <div className="font-medium text-blue-900">
-                        {selectedUniversity.name}
-                      </div>
-                    </div>
-                    <Check className="size-6 text-blue-600" />
-                  </div>
-                )}
-
-                {/* ✅ 목록이 남는 공간을 전부 차지 + 내부 스크롤 */}
-                <div className="flex-1 min-h-0 space-y-2 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                  {filteredUniversities.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-gray-500">
-                      검색 결과가 없습니다
-                    </div>
-                  ) : (
-                    filteredUniversities.map((uni) => (
-                      <button
-                        key={uni.id}
+              <div className="grid grid-cols-2 gap-4">
+                {AVAILABLE_UNIVERSITIES.map((uni) => (
+                    <button
+                        key={uni.code}
                         type="button"
-                        onClick={() => handleUniversitySelect(uni)}
-                        className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                          selectedUniversity?.id === uni.id
-                            ? "border-blue-600 bg-blue-50 text-blue-700"
-                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
+                        onClick={() => setSelectedUniversity(uni)}
+                        className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                            selectedUniversity?.code === uni.code
+                                ? `${uni.color} border-current ring-1 ring-offset-2`
+                                : "border-gray-100 hover:border-gray-300 text-gray-600 bg-gray-50"
                         }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{uni.name}</span>
-                          {selectedUniversity?.id === uni.id && (
-                            <Check className="size-5 text-blue-600" />
-                          )}
-                        </div>
-                        <div className="text-sm opacity-75 mt-1">
-                          {uni.departments.length}개 학과
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
+                    >
+                      <School className="size-6 mb-1 opacity-80"/>
+                      <span className="font-bold">{uni.name}</span>
+                      {selectedUniversity?.code === uni.code && <Check className="size-4"/>}
+                    </button>
+                ))}
               </div>
             </div>
 
-            {/* 학과 선택 */}
-            <div className="flex flex-col lg:h-[520px]">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                2. 학과 검색 및 선택
+            {/* 2. 학과 입력 (직접 입력) */}
+            <div>
+              <label className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <GraduationCap className="size-4 text-purple-600"/> 학과 입력
               </label>
+              <input
+                  type="text"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="예: 컴퓨터학과, 경영학과"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+              />
+            </div>
 
-              {/* ✅ 이 영역도 flex-1로 고정 높이 안에서 채우기 */}
-              <div className="flex-1 flex flex-col min-h-0">
-                {!selectedUniversity ? (
-                  <div className="h-full flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg text-gray-500">
-                    먼저 학교를 선택해주세요
-                  </div>
-                ) : (
-                  <>
-                    {/* 학과 검색창 */}
-                    <div className="relative mb-4">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
+            {/* 3. 학년 선택 */}
+            <div>
+              <label className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <User className="size-4 text-green-600"/> 학년 선택
+              </label>
+              <div className="flex gap-3">
+                {[1, 2, 3, 4].map((g) => (
+                    <label
+                        key={g}
+                        className={`flex-1 cursor-pointer py-3 rounded-lg border text-center transition-all font-medium ${
+                            grade === g
+                                ? "bg-gray-800 text-white border-gray-800 shadow-md"
+                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                        }`}
+                    >
                       <input
-                        type="text"
-                        value={departmentSearch}
-                        onChange={(e) => setDepartmentSearch(e.target.value)}
-                        placeholder="학과 이름을 검색하세요"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                          type="radio"
+                          name="grade"
+                          value={g}
+                          className="hidden"
+                          onChange={() => setGrade(g)}
                       />
-                    </div>
-
-                    {/* 선택된 학과 표시 */}
-                    {selectedDepartment && (
-                      <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-600 rounded-lg flex items-center justify-between">
-                        <div>
-                          <div className="text-sm text-purple-600 font-medium mb-1">
-                            선택된 학과
-                          </div>
-                          <div className="font-medium text-purple-900">
-                            {selectedDepartment}
-                          </div>
-                        </div>
-                        <Check className="size-6 text-purple-600" />
-                      </div>
-                    )}
-
-                    {/* ✅ 목록이 남는 공간을 전부 차지 + 내부 스크롤 */}
-                    <div className="flex-1 min-h-0 space-y-2 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                      {filteredDepartments.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-gray-500">
-                          검색 결과가 없습니다
-                        </div>
-                      ) : (
-                        filteredDepartments.map((dept) => (
-                          <button
-                            key={dept}
-                            type="button"
-                            onClick={() => setSelectedDepartment(dept)}
-                            className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                              selectedDepartment === dept
-                                ? "border-purple-600 bg-purple-50 text-purple-700"
-                                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{dept}</span>
-                              {selectedDepartment === dept && (
-                                <Check className="size-5 text-purple-600" />
-                              )}
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </>
-                )}
+                      {g}학년
+                    </label>
+                ))}
               </div>
             </div>
-          </div>
 
-          <div className="mt-8">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              3. 학년 선택
-            </label>
-            <select
-              value={grade !== null ? grade : ""}
-              onChange={(e) => setGrade(e.target.value ? parseInt(e.target.value, 10) : null)}
-              className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            <button
+                type="submit"
+                disabled={!selectedUniversity || !department || !grade || isSubmitting}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
-              <option value="">학년 선택</option>
-              <option value="1">1학년</option>
-              <option value="2">2학년</option>
-              <option value="3">3학년</option>
-              <option value="4">4학년</option>
-              <option value="5">5학년 이상</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            disabled={!selectedUniversity || !selectedDepartment || grade === null}
-            className="w-full mt-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            다음 단계로
-          </button>
-        </form>
-
-        {/* 뒤로가기 버튼 */}
-        <div className="mt-6 text-center">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="size-5" />
-            뒤로가기
-          </button>
+              {isSubmitting ? "저장 중..." : "설정 완료"}
+            </button>
+          </form>
         </div>
       </div>
-    </div>
   );
 }
