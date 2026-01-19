@@ -21,27 +21,35 @@ repositories {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-h2console")
+    // ✅ Web (Jackson 자동 설정 포함)
+    implementation("org.springframework.boot:spring-boot-starter-web")
+
+    // ✅ JPA + DB
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("tools.jackson.module:jackson-module-kotlin")
     runtimeOnly("com.h2database:h2")
-    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    // 🕷️ 셀레니움 (웹 크롤링 로봇)
+    implementation("org.springframework.boot:spring-boot-h2console")
+
+    // ✅ Kotlin
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+    // ✅ Kotlin data class JSON 역직렬화 필수
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.20.1")
+
+    // 🕷️ 셀레니움
     implementation("org.seleniumhq.selenium:selenium-java:4.16.1")
 
-    // 🔐 스프링 시큐리티 (로그인/보안 담당)
+    // 🔐 Security
     implementation("org.springframework.boot:spring-boot-starter-security")
 
-    // 🎫 JWT 라이브러리 (토큰 생성/검증)
+    // 🎫 JWT
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
+
+    // ✅ Test (하나로 정리)
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 kotlin {
