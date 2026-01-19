@@ -1,41 +1,43 @@
-### 1. 회원가입 테스트 (계정 만들기)
-POST http://localhost:8080/api/auth/signup
-Content-Type: application/json
-
-{
-  "email": "test@korea.ac.kr",
-  "password": "password1234",
-  "nickname": "아기호랑이"
-}
-
-### 2. 로그인 테스트 (토큰 발급받기)
-# 로그인이 성공하면 자동으로 토큰을 변수(auth_token)에 저장합니다.
-POST http://localhost:8080/api/auth/login
-Content-Type: application/json
-
-{
-  "email": "test@korea.ac.kr",
-  "password": "password1234"
-}
-
-> {%
-    client.global.set("auth_token", response.body.token);
-    client.log("🔑 토큰이 발급되어 저장되었습니다: " + response.body.token);
-%}
-
-### 3. 시간표 생성 요청 (로그인한 사용자만 가능)
+### 테스트 1: 고려대학교 경영학과 학생 (경영전략 필수)
 POST http://localhost:8080/api/timetable/generate
 Content-Type: application/json
-Authorization: Bearer {{auth_token}}
 
 {
-  "maxGapHours": 3,
-  "targetCredit": 18,
-  "minRating": 3.0,
+  "university": "KOREA",
+  "year": 2025,
+  "semester": 1,
+  "targetCredit": 15,
+  "minMajorCredit": 9,
+  "minMustHaveMajorCount": 1,
+  "minMustHaveGeneralCount": 0,
+  "mustHaveMajorIds": ["BUSS402-00"],
+  "mustHaveGeneralIds": [],
+  "avoidKeywords": [],
+  "blockedTimes": [],
+  "wantedDayOffs": [],
+  "minRating": 0.0,
   "onlyMajor": false,
-  "excludeNoTime": true,
-  "avoidKeywords": ["영어", "발표"],
+  "excludeNoTime": true
+}
+
+### 테스트 2: 한양대학교 공대생 (공학입문설계 필수)
+POST http://localhost:8080/api/timetable/generate
+Content-Type: application/json
+
+{
+  "university": "HANYANG",
+  "year": 2025,
+  "semester": 1,
+  "targetCredit": 18,
+  "minMajorCredit": 9,
+  "minMustHaveMajorCount": 1,
+  "minMustHaveGeneralCount": 0,
+  "mustHaveMajorIds": ["HYu-1-1"],
+  "mustHaveGeneralIds": [],
+  "avoidKeywords": ["영어전용"],
+  "blockedTimes": [],
   "wantedDayOffs": ["Fri"],
-  "mustHaveIds": [],
-  "minMajorCredit": 9
+  "minRating": 0.0,
+  "onlyMajor": false,
+  "excludeNoTime": true
 }

@@ -32,6 +32,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    // 🕷️ 셀레니움 (웹 크롤링 로봇)
+    implementation("org.seleniumhq.selenium:selenium-java:4.16.1")
 
     // 🔐 스프링 시큐리티 (로그인/보안 담당)
     implementation("org.springframework.boot:spring-boot-starter-security")
