@@ -34,12 +34,13 @@ export function ReviewsPage({ user, onBack }) {
 
   const [expandedReviewId, setExpandedReviewId] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [comments, setComments] = useState(mockComments);
+  const [commentsByReview, setCommentsByReview] = useState({}); // { [reviewId]: [...comments] }
   const [showCommentsForReview, setShowCommentsForReview] = useState(null);
   const [newComment, setNewComment] = useState({}); // { [reviewId]: string }
   const [summary, setSummary] = useState({ count: 0, averageRating: 0.0 });
+  const [userLikes, setUserLikes] = useState({}); // { [reviewId]: boolean } - 사용자가 좋아요했는지 여부
 
-    // ✅ 유저 학교(한글) -> 강의 DB의 코드(HANYANG/KOREA)로 매핑
+  // ✅ 유저 학교(한글) -> 강의 DB의 코드(HANYANG/KOREA)로 매핑
   const uniCode = useMemo(() => {
     const u = user?.university || '';
     if (u.includes('한양')) return 'HANYANG';
@@ -72,33 +73,33 @@ export function ReviewsPage({ user, onBack }) {
   }, [uniCode]);
 
   useEffect(() => {
-  if (!uniCode) return;
+    if (!uniCode) return;
 
-  fetch(`http://localhost:8080/api/reviews/summary/all?university=${encodeURIComponent(uniCode)}`)
-    .then((res) => res.json())
-    .then((rows) => {
-      const map = {};
-      (Array.isArray(rows) ? rows : []).forEach((r) => {
-        // r.lectureId 가 course.id 와 매칭됨
-        map[r.lectureId] = {
-          count: Number(r.count || 0),
-          averageRating: Number(r.averageRating || 0),
-        };
-      });
-      setSummaryMap(map);
-    })
-    .catch(() => setSummaryMap({}));
-}, [uniCode, courses.length]);
+    fetch(`http://localhost:8080/api/reviews/summary/all?university=${encodeURIComponent(uniCode)}`)
+      .then((res) => res.json())
+      .then((rows) => {
+        const map = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          // r.lectureId 가 course.id 와 매칭됨
+          map[r.lectureId] = {
+            count: Number(r.count || 0),
+            averageRating: Number(r.averageRating || 0),
+          };
+        });
+        setSummaryMap(map);
+      })
+      .catch(() => setSummaryMap({}));
+  }, [uniCode, courses.length]);
 
 
   // ✅ 컴포넌트 마운트 시 강의 목록 불러오기
   useEffect(() => {
-  if (!selectedCourseId) return;
+    if (!selectedCourseId) return;
 
-  fetch(`http://localhost:8080/api/reviews?lectureId=${encodeURIComponent(selectedCourseId)}`)
-    .then((res) => res.json())
-    .then((data) => setReviews(Array.isArray(data) ? data : []))
-    .catch(() => setReviews([]));
+    fetch(`http://localhost:8080/api/reviews?lectureId=${encodeURIComponent(selectedCourseId)}`)
+      .then((res) => res.json())
+      .then((data) => setReviews(Array.isArray(data) ? data : []))
+      .catch(() => setReviews([]));
   }, [selectedCourseId]);
 
   // ✅ 검색된 강의 목록 (mockCourses -> courses)
@@ -201,17 +202,100 @@ export function ReviewsPage({ user, onBack }) {
       .then((res) => res.json())
       .then((data) => setSummary(data || { count: 0, averageRating: 0.0 }))
       .catch(() => setSummary({ count: 0, averageRating: 0.0 }));
-  }, [selectedCourseId]);
+
+    // ✅ 내 좋아요 목록 불러오기
+    if (user?.id) {
+      fetch(`http://localhost:8080/api/reviews/likes?userId=${encodeURIComponent(user.id)}&lectureId=${encodeURIComponent(selectedCourseId)}`)
+        .then(res => res.json())
+        .then(ids => {
+          const map = {};
+          (Array.isArray(ids) ? ids : []).forEach(id => { map[id] = true; });
+          setUserLikes(map);
+        })
+        .catch(() => setUserLikes({}));
+    } else {
+      setUserLikes({});
+    }
+  }, [selectedCourseId, user?.id]);
 
 
-  const handleLikeReview = (reviewId) => {
-    // ✅ 아직 구현되지 않은 기능
-    alert('좋아요 기능은 아직 준비 중입니다.');
+  const handleLikeReview = async (reviewId) => {
+    try {
+      const numReviewId = Number(reviewId);
+      const res = await fetch(
+        `http://localhost:8080/api/reviews/${numReviewId}/like?userId=${encodeURIComponent(
+          String(user?.id || 'anonymous')
+        )}`,
+        { method: 'POST' }
+      );
+      if (!res.ok) throw new Error();
+
+      const data = await res.json(); // { reviewId, liked: boolean, likesCount: number }
+
+      // 좋아요 상태 업데이트
+      setUserLikes((prev) => ({ ...prev, [numReviewId]: data.liked }));
+
+      // 리뷰의 좋아요 개수 업데이트
+      setReviews((prev) =>
+        prev.map((r) =>
+          (r?.id === numReviewId || r?.reviewId === numReviewId)
+            ? { ...r, likesCount: data.likesCount }
+            : r
+        )
+      );
+
+    } catch {
+      alert('좋아요 처리 실패');
+    }
   };
 
-  const handleAddComment = (reviewId) => {
-    // ✅ 아직 구현되지 않은 기능
-    alert('댓글 기능은 아직 준비 중입니다.');
+  const loadComments = async (reviewId) => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/reviews/${reviewId}/comments`);
+      if (!res.ok) throw new Error();
+      const list = await res.json();
+      setCommentsByReview((prev) => ({ ...prev, [reviewId]: Array.isArray(list) ? list : [] }));
+    } catch {
+      setCommentsByReview((prev) => ({ ...prev, [reviewId]: [] }));
+    }
+  };
+
+  const handleAddComment = async (reviewId) => {
+    const text = newComment[reviewId]?.trim();
+    if (!text) return;
+
+    const payload = {
+      reviewId: Number(reviewId),
+      userId: String(user?.id || 'anonymous'),
+      userName: user?.name || '익명',
+      content: text,
+    };
+
+    try {
+      const res = await fetch(`http://localhost:8080/api/reviews/${reviewId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error();
+
+      const saved = await res.json();
+
+      setCommentsByReview((prev) => ({
+        ...prev,
+        [reviewId]: [...(prev[reviewId] || []), saved],
+      }));
+      setReviews((prev) =>
+        prev.map((r) =>
+          (r.id === Number(reviewId) || r.reviewId === Number(reviewId))
+            ? { ...r, commentsCount: (r.commentsCount || 0) + 1 }
+            : r
+        )
+      );
+      setNewComment((prev) => ({ ...prev, [reviewId]: '' }));
+    } catch {
+      alert('댓글 저장 실패');
+    }
   };
 
   const renderStars = (rating, interactive = false, onRate) => {
@@ -220,9 +304,8 @@ export function ReviewsPage({ user, onBack }) {
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`size-5 ${
-              star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-            } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+            className={`size-5 ${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+              } ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
             onClick={() => interactive && onRate?.(star)}
           />
         ))}
@@ -231,10 +314,10 @@ export function ReviewsPage({ user, onBack }) {
   };
 
   const labelMap = {
-  assignmentAmount: { low: '적음', medium: '보통', high: '많음' },
-  teamProject: { none: '없음', few: '보통', many: '많음' },
-  grading: { generous: '너그러움', normal: '보통', strict: '깐깐함' },
-  attendance: { none: '미체크', direct: '직접호명', electronic: '전자출결', assignment: '과제' },
+    assignmentAmount: { low: '적음', medium: '보통', high: '많음' },
+    teamProject: { none: '없음', few: '보통', many: '많음' },
+    grading: { generous: '너그러움', normal: '보통', strict: '깐깐함' },
+    attendance: { none: '미체크', direct: '직접호명', electronic: '전자출결', assignment: '과제' },
   };
 
   const calcDist = (items, key) => {
@@ -366,11 +449,10 @@ export function ReviewsPage({ user, onBack }) {
                         setSelectedCourseId(course.id);
                         setShowWriteReview(false);
                       }}
-                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                        selectedCourseId === course.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${selectedCourseId === course.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
@@ -380,11 +462,10 @@ export function ReviewsPage({ user, onBack }) {
                           </p>
                         </div>
                         <span
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            course.category === '전공'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}
+                          className={`text-xs px-2 py-1 rounded-full ${course.category === '전공'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
+                            }`}
                         >
                           {course.category}
                         </span>
@@ -393,11 +474,10 @@ export function ReviewsPage({ user, onBack }) {
                         <div className="flex items-center gap-1">
                           <div className="flex items-center gap-1">
                             <Star
-                              className={`size-4 ${
-                                reviewCount > 0
-                                  ? 'fill-yellow-400 text-yellow-400'
-                                  : 'fill-gray-200 text-gray-300'
-                              }`}
+                              className={`size-4 ${reviewCount > 0
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'fill-gray-200 text-gray-300'
+                                }`}
                             />
                             <span className={`font-medium ${reviewCount > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                               {avgRating}
@@ -426,88 +506,88 @@ export function ReviewsPage({ user, onBack }) {
             ) : (
               <div>
                 {/* 강의 정보 + 통계 패널 */}
-              <div className="mb-6 p-5 rounded-xl border border-gray-200 bg-white shadow-sm">
-                {/* 상단 헤더 */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-xl font-bold text-gray-900 truncate">{selectedCourse.name}</h2>
-                    <p className="text-gray-600 mt-1">{selectedCourse.professor} 교수님</p>
+                <div className="mb-6 p-5 rounded-xl border border-gray-200 bg-white shadow-sm">
+                  {/* 상단 헤더 */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-bold text-gray-900 truncate">{selectedCourse.name}</h2>
+                      <p className="text-gray-600 mt-1">{selectedCourse.professor} 교수님</p>
 
-                    <div className="flex items-center gap-4 mt-3">
-                      <div className="flex items-center gap-2">
-                        {renderStars(parseFloat(averageRating))}
-                        <span className="text-2xl font-bold text-gray-900">{averageRating}</span>
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-2">
+                          {renderStars(parseFloat(averageRating))}
+                          <span className="text-2xl font-bold text-gray-900">{averageRating}</span>
+                        </div>
+                        <span className="text-gray-500">({reviewCount}개의 강의평)</span>
                       </div>
-                      <span className="text-gray-500">({reviewCount}개의 강의평)</span>
                     </div>
+
+                    <button
+                      onClick={() => setShowWriteReview((v) => !v)}
+                      className="shrink-0 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:shadow-lg transition-all"
+                    >
+                      강의평 작성하기
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() => setShowWriteReview((v) => !v)}
-                    className="shrink-0 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:shadow-lg transition-all"
-                  >
-                    강의평 작성하기
-                  </button>
-                </div>
+                  {/* 통계: 리뷰가 있을 때만 */}
+                  <div className="mt-5 pt-5 border-t border-gray-200">
+                    {courseReviews.length === 0 ? (
+                      <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        아직 작성된 강의평이 없어 통계를 표시할 수 없어요.
+                      </div>
+                    ) : (
+                      (() => {
+                        const total = courseReviews.length;
 
-                {/* 통계: 리뷰가 있을 때만 */}
-                <div className="mt-5 pt-5 border-t border-gray-200">
-                  {courseReviews.length === 0 ? (
-                    <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      아직 작성된 강의평이 없어 통계를 표시할 수 없어요.
-                    </div>
-                  ) : (
-                    (() => {
-                      const total = courseReviews.length;
+                        const aDist = calcDist(courseReviews, 'assignmentAmount');
+                        const tDist = calcDist(courseReviews, 'teamProject');
+                        const gDist = calcDist(courseReviews, 'grading');
+                        const atDist = calcDist(courseReviews, 'attendance');
+                        const eDist = calcExamDist(courseReviews);
 
-                      const aDist = calcDist(courseReviews, 'assignmentAmount');
-                      const tDist = calcDist(courseReviews, 'teamProject');
-                      const gDist = calcDist(courseReviews, 'grading');
-                      const atDist = calcDist(courseReviews, 'attendance');
-                      const eDist = calcExamDist(courseReviews);
+                        const aRows = ['low', 'medium', 'high'].map((k) => ({
+                          label: labelMap.assignmentAmount[k],
+                          count: aDist[k] || 0,
+                        }));
 
-                      const aRows = ['low', 'medium', 'high'].map((k) => ({
-                        label: labelMap.assignmentAmount[k],
-                        count: aDist[k] || 0,
-                      }));
+                        const tRows = ['none', 'few', 'many'].map((k) => ({
+                          label: labelMap.teamProject[k],
+                          count: tDist[k] || 0,
+                        }));
 
-                      const tRows = ['none', 'few', 'many'].map((k) => ({
-                        label: labelMap.teamProject[k],
-                        count: tDist[k] || 0,
-                      }));
+                        const gRows = ['generous', 'normal', 'strict'].map((k) => ({
+                          label: labelMap.grading[k],
+                          count: gDist[k] || 0,
+                        }));
 
-                      const gRows = ['generous', 'normal', 'strict'].map((k) => ({
-                        label: labelMap.grading[k],
-                        count: gDist[k] || 0,
-                      }));
+                        const atRows = ['none', 'direct', 'electronic', 'assignment'].map((k) => ({
+                          label: labelMap.attendance[k],
+                          count: atDist[k] || 0,
+                        }));
 
-                      const atRows = ['none', 'direct', 'electronic', 'assignment'].map((k) => ({
-                        label: labelMap.attendance[k],
-                        count: atDist[k] || 0,
-                      }));
+                        const eRows = [
+                          { label: '없음', count: eDist[0] || 0 },
+                          { label: '1회', count: eDist[1] || 0 },
+                          { label: '2회', count: eDist[2] || 0 },
+                          { label: '3+회', count: eDist[3] || 0 },
+                        ];
 
-                      const eRows = [
-                        { label: '없음', count: eDist[0] || 0 },
-                        { label: '1회', count: eDist[1] || 0 },
-                        { label: '2회', count: eDist[2] || 0 },
-                        { label: '3+회', count: eDist[3] || 0 },
-                      ];
-
-                      return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <ProgressRow title="과제량" rows={aRows} total={total} />
-                          <ProgressRow title="조모임" rows={tRows} total={total} />
-                          <ProgressRow title="성적" rows={gRows} total={total} />
-                          <ProgressRow title="출석" rows={atRows} total={total} />
-                          <div className="md:col-span-2">
-                            <ProgressRow title="시험 횟수" rows={eRows} total={total} />
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <ProgressRow title="과제량" rows={aRows} total={total} />
+                            <ProgressRow title="조모임" rows={tRows} total={total} />
+                            <ProgressRow title="성적" rows={gRows} total={total} />
+                            <ProgressRow title="출석" rows={atRows} total={total} />
+                            <div className="md:col-span-2">
+                              <ProgressRow title="시험 횟수" rows={eRows} total={total} />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })()
-                  )}
+                        );
+                      })()
+                    )}
+                  </div>
                 </div>
-              </div>
 
                 {/* 강의평 작성 폼 */}
                 {showWriteReview && (
@@ -712,24 +792,27 @@ export function ReviewsPage({ user, onBack }) {
                           <div className="flex items-center gap-4 text-sm">
                             <button
                               onClick={() => handleLikeReview(review.id)}
-                              className={`flex items-center gap-1 transition-colors ${
-                                review.likedByUser
-                                  ? 'text-blue-600'
-                                  : 'text-gray-500 hover:text-blue-600'
-                              }`}
+                              className={`flex items-center gap-1 transition-colors ${userLikes[review.id]
+                                ? 'text-blue-600'
+                                : 'text-gray-500 hover:text-blue-600'
+                                }`}
                             >
-                              <ThumbsUp className={`size-4 ${review.likedByUser ? 'fill-blue-600' : ''}`} />
-                              <span>{review.likes}</span>
+                              <ThumbsUp className={`size-4 ${userLikes[review.id] ? 'fill-blue-600' : ''}`} />
+                              <span>{Number(review.likesCount || 0)}</span>
                             </button>
 
                             <button
-                              onClick={() =>
-                                setShowCommentsForReview(showCommentsForReview === review.id ? null : review.id)
-                              }
+                              onClick={() => {
+                                const targetId = showCommentsForReview === review.id ? null : review.id;
+                                setShowCommentsForReview(targetId);
+                                if (targetId && !commentsByReview[targetId]) {
+                                  loadComments(targetId);
+                                }
+                              }}
                               className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition-colors"
                             >
                               <MessageSquare className="size-4" />
-                              <span>{comments.filter((c) => c.reviewId === review.id).length}</span>
+                              <span>{review.commentsCount || 0}</span>
                             </button>
                           </div>
 
@@ -737,11 +820,10 @@ export function ReviewsPage({ user, onBack }) {
                           {showCommentsForReview === review.id && (
                             <div className="mt-4 pt-4 border-t border-gray-200">
                               <div className="space-y-2 mb-3">
-                                {comments.filter((comment) => comment.reviewId === review.id).length === 0 ? (
+                                {(commentsByReview[review.id] || []).length === 0 ? (
                                   <p className="text-sm text-gray-500 text-center py-2">아직 댓글이 없습니다.</p>
                                 ) : (
-                                  comments
-                                    .filter((comment) => comment.reviewId === review.id)
+                                  (commentsByReview[review.id] || [])
                                     .map((comment) => (
                                       <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
                                         <div className="flex items-center justify-between mb-1">

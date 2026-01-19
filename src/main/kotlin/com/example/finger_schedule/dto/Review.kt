@@ -50,4 +50,7 @@ class Review(
 
     @Column(nullable = false, columnDefinition = "BIGINT DEFAULT 0")
     var likesCount: Long = 0,
+
+    @Column(nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    var commentsCount: Long = 0,
 )
