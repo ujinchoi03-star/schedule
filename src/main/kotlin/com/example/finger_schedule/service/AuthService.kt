@@ -53,7 +53,8 @@ class AuthService(
             nickname = user.nickname,
             university = user.university, // DB에서 꺼내온 학교
             department = user.department, // DB에서 꺼내온 학과
-            grade = user.grade            // DB에서 꺼내온 학년
+            grade = user.grade,            // DB에서 꺼내온 학년
+            id = user.id!!
         )
     }
 

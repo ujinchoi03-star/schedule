@@ -221,16 +221,27 @@ export function ReviewsPage({ user, onBack }) {
 
   const handleLikeReview = async (reviewId) => {
     try {
+      console.log('Happy debugging: Clicking Like. Current user:', user);
       const numReviewId = Number(reviewId);
+      const targetUserId = String(user?.id || 'anonymous');
+      console.log('Sending userId to server:', targetUserId);
+
       const res = await fetch(
         `http://localhost:8080/api/reviews/${numReviewId}/like?userId=${encodeURIComponent(
-          String(user?.id || 'anonymous')
+          targetUserId
         )}`,
         { method: 'POST' }
       );
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt);
+      }
 
-      const data = await res.json(); // { reviewId, liked: boolean, likesCount: number }
+      const data = await res.json(); // { reviewId, liked: boolean, likesCount: number, error?: string }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       // 좋아요 상태 업데이트
       setUserLikes((prev) => ({ ...prev, [numReviewId]: data.liked }));

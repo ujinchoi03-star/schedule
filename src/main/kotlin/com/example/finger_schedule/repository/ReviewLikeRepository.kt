@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 
 interface ReviewLikeRepository : JpaRepository<ReviewLike, Long> {
-    fun findByReviewIdAndUserId(reviewId: Long, userId: String): ReviewLike?
+    fun findByReviewIdAndUserId(reviewId: Long, userId: String): List<ReviewLike>
 
     fun deleteByReviewIdAndUserId(reviewId: Long, userId: String): Long
 

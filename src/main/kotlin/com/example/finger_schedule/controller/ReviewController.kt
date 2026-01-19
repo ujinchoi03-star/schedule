@@ -116,14 +116,16 @@ class ReviewController(
                 ?: return ResponseEntity.notFound().build()
 
             val existing = likeRepository.findByReviewIdAndUserId(reviewId, userId)
-            logger.info("기존 좋아요: $existing")
+            logger.info("기존 좋아요: ${existing.size}개")
 
-            val liked = if (existing != null) {
-                likeRepository.deleteByReviewIdAndUserId(reviewId, userId)
+            val liked = if (existing.isNotEmpty()) {
+                likeRepository.deleteAll(existing)
+                likeRepository.flush()
                 logger.info("좋아요 삭제")
                 false
             } else {
                 likeRepository.save(ReviewLike(reviewId = reviewId, userId = userId))
+                likeRepository.flush()
                 logger.info("좋아요 저장")
                 true
             }

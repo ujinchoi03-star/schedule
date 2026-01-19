@@ -17,7 +17,8 @@ data class LoginResponse(
     val nickname: String,
     val university: String? = null,
     val department: String? = null,
-    val grade: Int? = null
+    val grade: Int? = null,
+    val id: Long
 )
 
 data class OnboardingRequest(

@@ -46,18 +46,18 @@ export default function Login({ onLogin }) {
         });
 
         alert("회원가입 성공! 이제 로그인해주세요.");
-        setIsSignUp(false); 
-        resetForm(); 
-      // Login.jsx 내의 handleSubmit 함수 내부 else 블록
+        setIsSignUp(false);
+        resetForm();
+        // Login.jsx 내의 handleSubmit 함수 내부 else 블록
       } else {
         // [로그인]
         const response = await axios.post("http://localhost:8080/api/auth/login", {
           email: email,
           password: password,
         });
-        
+
         // 🌟 백엔드에서 추가한 필드들을 응답에서 구조 분해 할당으로 가져옵니다.
-        const { token, nickname, university, department, grade } = response.data;
+        const { token, nickname, university, department, grade, id } = response.data;
         localStorage.setItem("accessToken", token);
 
         // 🌟 onLogin에 이 정보들을 모두 담아서 보냅니다.
@@ -66,7 +66,8 @@ export default function Login({ onLogin }) {
           email: email,
           university: university, // 추가
           department: department, // 추가
-          grade: grade           // 추가
+          grade: grade,           // 추가
+          id: id                  // 추가
         });
       }
     } catch (err) {
@@ -91,8 +92,8 @@ export default function Login({ onLogin }) {
           {/* Left Side */}
           <div className="space-y-8"> {/* 세로 간격 설정 */}
             <div className="space-y-4"> {/* 제목과 설명 간격 설정 */}
-              <h1 className="text-5xl lg:text-6xl font-bold leading-tight"> {/* h1: 제목 스타일 설정-> 글자 크기: 기본 5xl, 큰 화면은 6xl, 폰트는 굵게, 줄 간격은 좁게 */} 
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> {} {/* 배경을 그라데이션으로 텍스트 모양으로만 보이게 클립, 글자색은 투명 즉 배경 그라데이션이 글자에 비쳐 보임 */}
+              <h1 className="text-5xl lg:text-6xl font-bold leading-tight"> {/* h1: 제목 스타일 설정-> 글자 크기: 기본 5xl, 큰 화면은 6xl, 폰트는 굵게, 줄 간격은 좁게 */}
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> { } {/* 배경을 그라데이션으로 텍스트 모양으로만 보이게 클립, 글자색은 투명 즉 배경 그라데이션이 글자에 비쳐 보임 */}
                   완벽한 시간표
                 </span>
                 <span className="text-gray-900">를</span>
@@ -149,7 +150,7 @@ export default function Login({ onLogin }) {
               </div>
             </div>
 
-            </div>
+          </div>
           {/* Right Side - Form */}
           <div className="lg:pl-12"> {/* 큰 화면에서 왼쪽 패딩 설정 */}
             <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-8 max-w-md mx-auto"> {/* 흰색 배경, 테두리, 둥근 모서리, 그림자, 내부 패딩, 최대 너비 설정, 가로 중앙 정렬 */}
@@ -169,11 +170,10 @@ export default function Login({ onLogin }) {
                     setIsSignUp(false); // 로그인 모드로 변경
                     resetForm();        // 폼 초기화 함수 호출
                   }}
-                  className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${
-                    !isSignUp
+                  className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${!isSignUp
                       ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   로그인
                 </button>
@@ -183,11 +183,10 @@ export default function Login({ onLogin }) {
                     setIsSignUp(true);  // 회원가입 모드로 변경
                     resetForm();        // 폼 초기화 함수 호출
                   }}
-                  className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${
-                    isSignUp
+                  className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${isSignUp
                       ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   회원가입
                 </button>
@@ -211,85 +210,82 @@ export default function Login({ onLogin }) {
 
                 {/* 아이디 입력란 */}
                 <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">아이디</label>
-                <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">아이디</label>
+                  <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${
-                    email ? (isEmailValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500") : "border-gray-300 focus:ring-blue-500"
-                    }`}
+                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${email ? (isEmailValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500") : "border-gray-300 focus:ring-blue-500"
+                      }`}
                     placeholder="example@university.ac.kr"
-                />
-                {isSignUp && (
+                  />
+                  {isSignUp && (
                     <p className={`mt-1.5 ml-1 text-xs flex items-center gap-1 transition-colors ${getValidationColor(email, isEmailValid)}`}>
-                    <AlertCircle className="size-3" />
-                    이메일 형식으로 작성해주세요.
+                      <AlertCircle className="size-3" />
+                      이메일 형식으로 작성해주세요.
                     </p>
-                )}
+                  )}
                 </div>
 
                 {/* 비밀번호 입력란 */}
                 <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">비밀번호</label>
-                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">비밀번호</label>
+                  <div className="relative">
                     <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none pr-12 transition-all ${
-                        password ? (isPasswordValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500") : "border-gray-300 focus:ring-blue-500"
-                    }`}
-                    placeholder="••••••••"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none pr-12 transition-all ${password ? (isPasswordValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500") : "border-gray-300 focus:ring-blue-500"
+                        }`}
+                      placeholder="••••••••"
                     />
                     <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                     >
-                    {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                     </button>
-                </div>
-                {isSignUp && (
+                  </div>
+                  {isSignUp && (
                     <p className={`mt-1.5 ml-1 text-xs flex items-center gap-1 transition-colors ${getValidationColor(password, isPasswordValid)}`}>
-                    <AlertCircle className="size-3" />
-                    영어, 숫자를 포함하여 8자리 이상으로 만들어주세요.
+                      <AlertCircle className="size-3" />
+                      영어, 숫자를 포함하여 8자리 이상으로 만들어주세요.
                     </p>
-                )}
+                  )}
                 </div>
 
                 {isSignUp && (
-                <div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    비밀번호 확인
+                      비밀번호 확인
                     </label>
                     <div className="relative">
-                    <input
+                      <input
                         type={showPasswordConfirm ? "text" : "password"}
                         value={passwordConfirm}
                         onChange={(e) => setPasswordConfirm(e.target.value)}
-                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none pr-12 transition-all ${
-                        passwordConfirm 
-                            ? (isConfirmValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500") 
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 outline-none pr-12 transition-all ${passwordConfirm
+                            ? (isConfirmValid ? "border-blue-200 focus:ring-blue-500" : "border-red-200 focus:ring-red-500")
                             : "border-gray-300 focus:ring-blue-500"
-                        }`}
+                          }`}
                         placeholder="••••••••"
-                    />
-                    <button
+                      />
+                      <button
                         type="button"
                         onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                    >
+                      >
                         {showPasswordConfirm ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                    </button>
+                      </button>
                     </div>
-                    
+
                     {/* 비밀번호 확인 안내 문구 (회원가입 시에만) */}
                     <p className={`mt-1.5 ml-1 text-xs flex items-center gap-1 transition-colors ${getValidationColor(passwordConfirm, isConfirmValid)}`}>
-                    <AlertCircle className="size-3" />
-                    {passwordConfirm && !isConfirmValid ? "비밀번호가 일치하지 않습니다." : "비밀번호가 일치합니다."}
+                      <AlertCircle className="size-3" />
+                      {passwordConfirm && !isConfirmValid ? "비밀번호가 일치하지 않습니다." : "비밀번호가 일치합니다."}
                     </p>
-                </div>
+                  </div>
                 )}
 
                 {error && ( // 에러 메시지가 있을 때만 보이게
@@ -299,15 +295,14 @@ export default function Login({ onLogin }) {
                 )}
 
                 <button
-                type="submit"
-                disabled={!canSubmit} // 조건이 맞지 않으면 버튼 비활성화
-                className={`w-full py-3 rounded-lg font-medium transition-all ${
-                    canSubmit
-                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:scale-[1.02] cursor-pointer"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed" // 비활성화 스타일
-                }`}
+                  type="submit"
+                  disabled={!canSubmit} // 조건이 맞지 않으면 버튼 비활성화
+                  className={`w-full py-3 rounded-lg font-medium transition-all ${canSubmit
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:scale-[1.02] cursor-pointer"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed" // 비활성화 스타일
+                    }`}
                 >
-                {isSignUp ? "회원가입하기" : "로그인하기"}
+                  {isSignUp ? "회원가입하기" : "로그인하기"}
                 </button>
               </form>
             </div>

@@ -13,4 +13,7 @@ class ReviewLike(
 
     @Column(nullable = false)
     var userId: String = "",
+
+    @Column(nullable = false)
+    var createdAt: java.time.LocalDateTime = java.time.LocalDateTime.now(),
 )
