@@ -3,13 +3,13 @@ package com.example.finger_schedule.service
 import com.example.finger_schedule.domain.User
 import com.example.finger_schedule.dto.LoginRequest
 import com.example.finger_schedule.dto.LoginResponse
+import com.example.finger_schedule.dto.OnboardingRequest
 import com.example.finger_schedule.dto.SignupRequest
 import com.example.finger_schedule.repository.UserRepository
 import com.example.finger_schedule.security.JwtTokenProvider
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import com.example.finger_schedule.dto.OnboardingRequest
 
 @Service
 class AuthService(
@@ -37,7 +37,7 @@ class AuthService(
 
     // 🔑 로그인
     fun login(request: LoginRequest): LoginResponse {
-        // 👇 [수정됨] .orElseThrow -> ?: throw
+        // [내 코드 방식 유지] 코틀린스러운 null 처리 (?: throw)
         val user = userRepository.findByEmail(request.email)
             ?: throw IllegalArgumentException("가입되지 않은 이메일입니다.")
 
@@ -46,20 +46,23 @@ class AuthService(
         }
 
         val token = jwtTokenProvider.createToken(user.email)
+
+        // 🌟 [중요] 내 기능(email) + 동료 기능(id) 합체!
         return LoginResponse(
             token = token,
-            email = user.email,
+            email = user.email,       // 프론트엔드 localStorage 저장용 (필수)
             nickname = user.nickname,
             university = user.university,
             department = user.department,
-            grade = user.grade
+            grade = user.grade,
+            id = user.id!!            // 리뷰/팁 작성 시 식별용 (동료 코드 반영)
         )
     }
 
     // 🚀 온보딩 정보 업데이트
     @Transactional
     fun updateOnboarding(email: String, request: OnboardingRequest) {
-        // 👇 [수정됨] .orElseThrow -> ?: throw
+        // [내 코드 방식 유지]
         val user = userRepository.findByEmail(email)
             ?: throw IllegalArgumentException("사용자를 찾을 수 없습니다.")
 
