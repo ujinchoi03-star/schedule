@@ -55,18 +55,24 @@ export default function Login({ onLogin }) {
           email: email,
           password: password,
         });
-        
-        // 🌟 백엔드에서 추가한 필드들을 응답에서 구조 분해 할당으로 가져옵니다.
-        const { token, nickname, university, department, grade } = response.data;
-        localStorage.setItem("accessToken", token);
 
-        // 🌟 onLogin에 이 정보들을 모두 담아서 보냅니다.
+        // 1. 서버에서 받은 데이터 (여기에 email이 들어있음!)
+        // 백엔드 AuthService.kt를 고쳤다면 response.data 안에 email이 들어옵니다.
+        // 만약 안 들어온다면, 로그인 폼에 입력한 email 변수를 써도 됩니다.
+        const { token, email: serverEmail, nickname, university, department, grade } = response.data;
+
+        // 2. ★ [핵심] 브라우저 저장소(localStorage)에 저장하기 ★
+        localStorage.setItem("accessToken", token);
+        localStorage.setItem("userId", serverEmail || email); // 서버에서 안 오면 입력한 email 사용
+        localStorage.setItem("nickname", nickname);
+
+        // 3. 상위 컴포넌트(App.js)로 정보 전달
         onLogin({
           name: nickname,
-          email: email,
-          university: university, // 추가
-          department: department, // 추가
-          grade: grade           // 추가
+          email: serverEmail || email,
+          university: university,
+          department: department,
+          grade: grade
         });
       }
     } catch (err) {

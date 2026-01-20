@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { TimetableGrid } from './TimetableGrid';
-// 🚀 [삭제] CustomTimetablePage import 제거 (더 이상 쓰지 않음)
 import {
   LogOut, Sparkles, ArrowLeft, User as UserIcon, Bookmark, BookmarkCheck, Loader2
 } from 'lucide-react';
-import { logout, saveUser } from '../utils/storage';
+import { logout } from '../utils/storage';
 import api from '../api/axios';
 
 // 🎨 데이터 포맷팅 함수
@@ -49,7 +48,9 @@ const formatTimetableData = (backendData) => {
 
 export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResults }) {
   const [activeTab, setActiveTab] = useState('recommended');
-  const [savedTimetables, setSavedTimetables] = useState(user?.savedTimetables || []);
+
+  // 🚀 DB에서 불러온 데이터를 담을 상태
+  const [savedTimetables, setSavedTimetables] = useState([]);
 
   const [recommendedTimetables, setRecommendedTimetables] = useState(() => {
     return generatedResults ? formatTimetableData(generatedResults) : [];
@@ -57,6 +58,32 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
 
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // 🚀 1. 컴포넌트 실행 시 DB에서 저장된 시간표 불러오기
+  useEffect(() => {
+    const fetchSavedTimetables = async () => {
+      if (!user?.id) return;
+      try {
+        // 백엔드 API 호출 (/saved/{userId})
+        const response = await api.get(`/timetable/saved/${user.id}`);
+
+        // 받아온 데이터를 프론트엔드 형식에 맞게 변환
+        const formatted = response.data.map(t => ({
+          id: t.id, // DB의 saved_timetable_id (삭제할 때 필요)
+          name: t.name,
+          totalCredits: t.lectures.reduce((sum, l) => sum + (l.credit || 0), 0),
+          // 저장된 강의 목록을 포맷팅 함수 로직과 비슷하게 처리 (시간 정보 등)
+          courses: formatTimetableData([t.lectures])[0].courses
+        }));
+        setSavedTimetables(formatted);
+      } catch (error) {
+        console.error("저장된 시간표 로드 실패", error);
+      }
+    };
+
+    fetchSavedTimetables();
+  }, [user]);
+
+  // 추천 시간표 생성 로직 (기존 유지)
   useEffect(() => {
     if (generatedResults) {
       setRecommendedTimetables(formatTimetableData(generatedResults));
@@ -64,7 +91,6 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
     }
 
     const fetchRecommendations = async () => {
-      // 🚀 'saved' 탭이 아닐 때만(=추천 탭일 때) 실행
       if (activeTab === 'saved') return;
 
       try {
@@ -84,7 +110,6 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
 
       } catch (error) {
         console.error("추천 시간표 생성 실패:", error);
-        // 에러 처리 로직 생략 (기존 유지)
       } finally {
         setIsGenerating(false);
       }
@@ -95,21 +120,57 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
 
   const handleLogout = () => { logout?.(); onLogout?.(); };
 
-  const handleToggleSaveTimetable = (timetable) => {
-    const isSaved = savedTimetables.some((t) => t.id === timetable.id);
-    let newSavedTimetables;
-    if (isSaved) newSavedTimetables = savedTimetables.filter((t) => t.id !== timetable.id);
-    else newSavedTimetables = [...savedTimetables, timetable];
-    setSavedTimetables(newSavedTimetables);
-    const updatedUser = { ...user, savedTimetables: newSavedTimetables };
-    saveUser?.(updatedUser);
+  // 🚀 2. 보관/삭제 버튼 핸들러 (DB 연동)
+  const handleToggleSaveTimetable = async (timetable) => {
+    // 이미 저장된 시간표인지 확인 (이름 기준)
+    const savedItem = savedTimetables.find((t) => t.name === timetable.name);
+    const isSaved = !!savedItem;
+
+    try {
+      if (isSaved) {
+        // 🗑️ 이미 저장됨 -> 삭제 API 호출
+        if (savedItem.id && typeof savedItem.id === 'number') { // DB ID가 있는 경우만
+          await api.delete(`/timetable/saved/${savedItem.id}`);
+          setSavedTimetables(prev => prev.filter(t => t.id !== savedItem.id));
+        }
+      } // 💾 저장 안 됨 -> 저장 API 호출
+
+      // 1. 사용자 ID 확실하게 가져오기 (user.id가 없으면 로컬스토리지나 테스트값 사용)
+      const realUserId = user?.id || localStorage.getItem('userId') || "testUser";
+
+      // ID가 진짜 없는 경우 에러 방지
+      if (!realUserId) {
+        alert("로그인 정보가 확인되지 않습니다. 다시 로그인해주세요.");
+        return;
+      }
+
+      const requestData = {
+        userId: realUserId, // ✅ 확실한 ID 값을 넣어줍니다.
+        name: timetable.name,
+        lectureIds: timetable.courses.map(c => c.id)
+      };
+
+      console.log("서버로 보내는 데이터:", requestData); // (디버깅용) 콘솔에서 확인 가능
+
+      const response = await api.post('/timetable/save', requestData);
+
+      // 저장 성공 후 상태 업데이트 (응답받은 DB ID 사용)
+      const newSaved = {
+        ...timetable,
+        id: response.data // 백엔드가 반환한 저장된 ID (Long)
+      };
+      setSavedTimetables([...savedTimetables, newSaved]);
+    } catch (error) {
+      console.error("시간표 저장/삭제 실패:", error);
+      alert("작업을 처리하는 중 오류가 발생했습니다.");
+    }
   };
 
-  const isTimetableSaved = (timetableId) => savedTimetables.some((t) => t.id === timetableId);
+  // 저장 여부 확인 (UI 표시용)
+  const isTimetableSaved = (timetable) => savedTimetables.some((t) => t.name === timetable.name);
 
   return (
       <div className="min-h-screen bg-gray-50">
-        {/* 🚀 [유지] z-50 적용된 상단 바 */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div>
@@ -126,15 +187,13 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
         </header>
 
         <div className="max-w-7xl mx-auto px-4 py-8">
-          {/* 🚀 [수정] 탭 버튼 그룹: '맞춤 시간표' 제거 */}
           <div className="flex gap-2 mb-6">
-            <button onClick={() => setActiveTab('recommended')} className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${activeTab === 'recommended' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-50 border'}`}><Sparkles className="size-5" /> 추천 시간표</button>
-            <button onClick={() => setActiveTab('saved')} className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${activeTab === 'saved' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-50 border'}`}>
-              <BookmarkCheck className="size-5" /> 보관한 시간표 {savedTimetables.length > 0 && <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">{savedTimetables.length}</span>}
+            <button onClick={() => setActiveTab('recommended')} className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${activeTab === 'recommended' ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-gray-50 border'}`}>
+              <Sparkles className="size-5" /> 추천 시간표
             </button>
+
           </div>
 
-          {/* 🚀 [수정] 렌더링 로직 단순화 (추천 vs 보관) */}
           {activeTab === 'saved' ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {savedTimetables.map((timetable) => (
@@ -148,7 +207,6 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
                 )}
               </div>
           ) : (
-              // 기본값: recommended 탭
               <div>
                 {isGenerating ? (
                     <div className="text-center py-20 bg-white rounded-lg border border-gray-200">
@@ -167,7 +225,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
                             <div className="flex items-center justify-between mb-4">
                               <h3 className="font-bold text-lg text-gray-900">{timetable.name} <span className="text-sm font-normal text-gray-500 ml-2">({timetable.totalCredits}학점)</span></h3>
                               <button onClick={() => handleToggleSaveTimetable(timetable)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold ${isTimetableSaved(timetable.id) ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'}`}>
-                                {isTimetableSaved(timetable.id) ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />} {isTimetableSaved(timetable.id) ? '보관됨' : '보관'}
+                                {isTimetableSaved(timetable) ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />} {isTimetableSaved(timetable) ? '보관됨' : '보관'}
                               </button>
                             </div>
                             <TimetableGrid courses={timetable.courses} compact />
