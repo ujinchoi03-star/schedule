@@ -164,11 +164,17 @@ def click_search_and_parse(driver, category, college, dept, results, unique_ids)
                 name = name_cell.get_text(strip=True)
                 
                 details = []
+                # 1. MOOC 태그 확인
                 if name_cell.find('span', class_='label-type', string='M'):
                     details.append("MOOC")
                     if name.endswith('M'): name = name[:-1].strip()
+                
+                # 2. 강의명에 포함된 단어 확인
                 if "영강" in name: details.append("영강")
                 if "외국어" in name: details.append("외국어강의")
+                
+                # 👇 [추가된 부분] 강의명에 '유연학기'가 있으면 태그 추가!
+                if "유연학기" in name: details.append("유연학기")
 
                 prof = cols[6].get_text(strip=True)
                 
@@ -189,7 +195,7 @@ def click_search_and_parse(driver, category, college, dept, results, unique_ids)
                     "category": category,
                     "college": college,
                     "department": dept,
-                    "details": ",".join(details),
+                    "details": ",".join(details), # 여기에 '유연학기'가 포함되어 저장됩니다.
                     "year": 2025,
                     "semester": 1
                 }
@@ -205,7 +211,7 @@ def click_search_and_parse(driver, category, college, dept, results, unique_ids)
         print(f"      ❌ 조회 중 에러: {e}")
 
 def save_to_json(data):
-    filename = 'real_lectures_korea.json'
+    filename = 'real_lectures_korea_2026_1.json'
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
     print(f"\n🎉 크롤링 종료! 총 {len(data)}개 강의 저장됨.")

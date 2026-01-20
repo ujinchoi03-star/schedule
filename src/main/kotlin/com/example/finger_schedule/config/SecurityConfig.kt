@@ -21,25 +21,27 @@ class SecurityConfig {
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .cors { it.configurationSource(corsConfigurationSource()) }
+            .cors { it.configurationSource(corsConfigurationSource()) } // 프론트엔드 연결 유지
             .csrf { it.disable() }
+
+            // 👇 [이 부분이 빠져서 화면이 안 떴던 겁니다!]
+            .headers { it.frameOptions { frame -> frame.disable() } }
+
             .authorizeHttpRequests {
                 it.anyRequest().permitAll()
             }
         return http.build()
     }
 
+    // (아래 corsConfigurationSource 코드는 그대로 두세요. 잘 작성되었습니다!)
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:5173") 
-        
-        // 민정님이 추가한 PATCH를 포함한 모든 메서드 허용
-        configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS") 
-        
+        configuration.allowedOrigins = listOf("http://localhost:5173")
+        configuration.allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("*")
         configuration.allowCredentials = true
-        
+
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
         return source

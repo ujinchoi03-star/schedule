@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar, BookOpen, CheckCircle2,
-  Plus, X, Star, Settings2, Sparkles, Search, Clock, User
+  Plus, X, Star, Settings2, Sparkles, Search, Clock,
+  Ban, User, Hash
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -10,6 +11,11 @@ const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 const DAY_TRANSLATOR = {
   "Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"
+};
+
+const UNIV_KEYWORDS = {
+  HANYANG: ['IC-PBL', '영어전용', 'E러닝', 'SMART-F', '1학점 강의', '시간미지정 강의'],
+  KOREA: ['영강', '유연학기', 'mooc', '외국어강의', '1학점 강의', '시간미지정 강의']
 };
 
 const TIME_SLOTS = [];
@@ -25,9 +31,7 @@ const formatMinuteToTime = (minutes) => {
   return `${h}:${m.toString().padStart(2, '0')}`;
 };
 
-// --------------------------------------------------------
-// 🔍 강의 검색 모달 (변경 없음)
-// --------------------------------------------------------
+// 🔍 강의 검색 모달
 function CourseSearchModal({ isOpen, onClose, onSelect, type, userUniversity }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -37,73 +41,75 @@ function CourseSearchModal({ isOpen, onClose, onSelect, type, userUniversity }) 
     if (!searchTerm.trim()) return;
     try {
       setIsSearching(true);
+      const searchType = type === 'avoid' ? null : type;
+
+      // 🚨 [여기가 문제였습니다!] '/lectures' -> '/api/lectures'로 수정
+      // 백엔드 컨트롤러(@RequestMapping("/api/lectures"))와 주소를 일치시킵니다.
       const response = await api.get('/lectures', {
-        params: {
-          university: userUniversity || 'KOREA',
-          keyword: searchTerm,
-          type: type
-        }
+        params: { university: userUniversity || 'KOREA', keyword: searchTerm, type: searchType }
       });
       setSearchResults(response.data);
     } catch (error) {
       console.error("강의 검색 실패:", error);
       setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+    } finally { setIsSearching(false); }
   };
 
   if (!isOpen) return null;
 
   return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-all">
-        <div className="bg-white rounded-2xl w-full max-w-lg h-[600px] flex flex-col shadow-2xl animate-fade-in overflow-hidden">
+        <div className="bg-white rounded-2xl w-full max-w-lg h-[600px] flex flex-col shadow-2xl overflow-hidden">
           <div className="p-5 border-b flex justify-between items-center bg-gray-50">
             <div>
-              <h3 className="font-bold text-xl text-gray-900">{type === 'major' ? '📘 전공' : '📙 교양'} 강의 검색</h3>
-              <p className="text-xs text-gray-500 mt-1">{type === 'major' ? '전공 과목만 검색됩니다.' : '교양 및 일반선택 과목이 검색됩니다.'}</p>
+              <h3 className="font-bold text-xl text-gray-900">
+                {type === 'major' ? '📘 전공' : type === 'general' ? '📙 교양' : '🚫 제외할'} 강의 검색
+              </h3>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="size-5 text-gray-500"/></button>
           </div>
           <div className="p-4 border-b bg-white">
             <div className="relative flex items-center">
               <Search className="absolute left-4 text-gray-400 size-5"/>
-              <input type="text" placeholder={type === 'major' ? "전공 강의명 검색..." : "교양 강의명 검색..."} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium" autoFocus />
-              <button onClick={handleSearch} className="absolute right-2 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"><Search className="size-4"/></button>
+              <input type="text" placeholder="강의명, 교수명, 학수번호..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl bg-gray-50 outline-none font-medium" autoFocus />
+              <button onClick={handleSearch} className="absolute right-2 bg-blue-600 text-white p-2 rounded-lg"><Search className="size-4"/></button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto bg-gray-50 p-3">
             {isSearching ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-3"><div className="size-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div><p className="text-sm font-medium">검색 중...</p></div>
-            ) : searchResults.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400"><BookOpen className="size-12 mb-3 opacity-20"/><p className="font-medium">검색 결과가 없습니다</p><p className="text-xs mt-1">검색어를 확인해주세요</p></div>
             ) : (
                 <div className="space-y-3">
                   {searchResults.map(course => {
-                    const startStr = formatMinuteToTime(course.startTime);
-                    const endStr = formatMinuteToTime(course.endTime);
-                    const dayKo = DAY_TRANSLATOR[course.day] || course.day;
-                    let timeDisplayText = "온라인/시간 미정";
-                    let badgeColor = "bg-gray-100 text-gray-500";
-                    if (startStr && endStr) { timeDisplayText = `${dayKo}요일 ${startStr} ~ ${endStr}`; badgeColor = "bg-blue-50 text-blue-700 border border-blue-100"; }
-                    else if (dayKo) { timeDisplayText = `${dayKo}요일 (시간 미정)`; badgeColor = "bg-purple-50 text-purple-700 border border-purple-100"; }
-                    else if (course.timeRoom && course.timeRoom.length > 2) { timeDisplayText = course.timeRoom.split('(')[0]; badgeColor = "bg-green-50 text-green-700 border border-green-100"; }
+                    // 강의명 자르기 로직
+                    const displayName = course.name.split(/[\(\[]/)[0].trim();
+
+                    const timeDisplayText = course.timeSlots?.length > 0
+                        ? course.timeSlots.map(slot => `${DAY_TRANSLATOR[slot.day] || slot.day}(${formatMinuteToTime(slot.startTime)}~${formatMinuteToTime(slot.endTime)})`).join(', ')
+                        : "온라인/시간 미정";
+
+                    const isMajor = course.category.includes('전공');
+                    const categoryBadgeStyle = isMajor ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600';
 
                     return (
-                        <button key={course.id} onClick={() => { onSelect(course); onClose(); }} className="w-full bg-white p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all text-left group relative overflow-hidden flex flex-col gap-2">
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-200 group-hover:bg-blue-500 transition-colors"></div>
-                          <div className="flex justify-between items-center w-full pl-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${course.category.includes('전공') ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>{course.category}</span>
-                              <span className="text-xs text-gray-400">{course.department}</span>
+                        <button key={course.id} onClick={() => { onSelect(course); onClose(); }} className="w-full bg-white p-4 rounded-xl border border-gray-200 hover:border-blue-500 text-left group relative overflow-hidden flex flex-col gap-2 shadow-sm">
+                          <div className="flex justify-between items-start w-full mb-1">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${categoryBadgeStyle}`}>{course.category}</span>
+                            <div className="flex items-center gap-1 text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-lg"><Star className="size-3 fill-orange-500"/> {course.rating.toFixed(1)}</div>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-gray-900 text-base group-hover:text-blue-700">{displayName}</h4>
+                            <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                              <span className="flex items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium"><Hash className="size-3"/>{course.id}</span>
+                              <span className="w-px h-2 bg-gray-300"></span>
+                              <span className="flex items-center gap-0.5"><User className="size-3"/>{course.professor}</span>
+                              <span className="w-px h-2 bg-gray-300"></span>
+                              <span>{course.credit}학점</span>
                             </div>
-                            <div className="flex items-center gap-1 text-sm font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-lg"><Star className="size-3.5 fill-orange-500"/> {course.rating.toFixed(1)}</div>
                           </div>
-                          <div className="pl-2">
-                            <h4 className="font-bold text-gray-900 text-lg truncate group-hover:text-blue-700 transition-colors">{course.name}</h4>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-gray-600"><span className="flex items-center gap-1"><User className="size-3.5"/> {course.professor}</span><span className="w-1 h-1 rounded-full bg-gray-300"></span><span>{course.credit}학점</span></div>
+                          <div className="mt-2 pt-2 border-t border-gray-100 w-full">
+                            <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium"><Clock className="size-3.5 text-blue-500"/>{timeDisplayText}</div>
                           </div>
-                          <div className="ml-2 mt-1"><div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${badgeColor}`}><Clock className="size-3.5"/>{timeDisplayText}</div></div>
                         </button>
                     );
                   })}
@@ -115,50 +121,93 @@ function CourseSearchModal({ isOpen, onClose, onSelect, type, userUniversity }) 
   );
 }
 
-// --------------------------------------------------------
-// 📄 메인 페이지 (문제의 targetCredit을 완전히 제거한 버전)
-// --------------------------------------------------------
+const STORAGE_KEY = 'timetable_settings_v1';
+
+// 📄 메인 페이지
 export function SemesterSelectionPage({ user, onBack, onNext }) {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [semester, setSemester] = useState(1);
+  const getInitialState = (key, defaultValue) => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed[key] !== undefined ? parsed[key] : defaultValue;
+      }
+    } catch (e) { console.error("설정 불러오기 실패", e); }
+    return defaultValue;
+  };
 
-  // 🚨 [완전 수정] targetCredit 삭제, min/maxCreditRange 추가
-  const [minCreditRange, setMinCreditRange] = useState(15);
-  const [maxCreditRange, setMaxCreditRange] = useState(18);
+  const [year, setYear] = useState(() => getInitialState('year', new Date().getFullYear()));
+  const [semester, setSemester] = useState(() => getInitialState('semester', 1));
+  const [minCredit, setMinCredit] = useState(() => getInitialState('minCredit', 15));
+  const [maxCredit, setMaxCredit] = useState(() => getInitialState('maxCredit', 21));
 
-  const [minMajorCredit, setMinMajorCredit] = useState(9);
-  const [minMajorCount, setMinMajorCount] = useState(3);
-  const [minGeneralCount, setMinGeneralCount] = useState(0);
+  const [minMajorCredit, setMinMajorCredit] = useState(() => getInitialState('minMajorCredit', 9));
+  const [minMajorCount, setMinMajorCount] = useState(() => getInitialState('minMajorCount', 3));
+  const [minGeneralCount, setMinGeneralCount] = useState(() => getInitialState('minGeneralCount', 3));
 
-  const [mustHaveMajors, setMustHaveMajors] = useState([]);
-  const [mustHaveGenerals, setMustHaveGenerals] = useState([]);
+  const [mustHaveMajors, setMustHaveMajors] = useState(() => getInitialState('mustHaveMajors', []));
+  const [mustHaveGenerals, setMustHaveGenerals] = useState(() => getInitialState('mustHaveGenerals', []));
 
-  const [wantedDayOffs, setWantedDayOffs] = useState([]);
-  const [blockedTimes, setBlockedTimes] = useState([]);
-  const [minRating, setMinRating] = useState(0.0);
-  const [avoidKeywords, setAvoidKeywords] = useState([]);
+  const [avoidNameKeywords, setAvoidNameKeywords] = useState(() => getInitialState('avoidNameKeywords', []));
+  const [tempAvoidInput, setTempAvoidInput] = useState("");
 
+  const [wantedDayOffs, setWantedDayOffs] = useState(() => getInitialState('wantedDayOffs', []));
+
+  const [blockedTimes, setBlockedTimes] = useState(() => getInitialState('blockedTimes', []));
   const [newBlockDay, setNewBlockDay] = useState(0);
   const [newBlockStart, setNewBlockStart] = useState("09:00");
   const [newBlockEnd, setNewBlockEnd] = useState("12:00");
-  const [keywordInput, setKeywordInput] = useState("");
+
+  const [minRating, setMinRating] = useState(() => getInitialState('minRating', 0.0));
+  const [avoidKeywords, setAvoidKeywords] = useState(() => getInitialState('avoidKeywords', []));
+  const [preferredKeywords, setPreferredKeywords] = useState(() => getInitialState('preferredKeywords', []));
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalType, setModalType] = useState(null);
+
+  const recommendedKeywords = UNIV_KEYWORDS[user?.university] || [];
+
+  useEffect(() => {
+    const settings = {
+      year, semester, minCredit, maxCredit,
+      minMajorCredit, minMajorCount, minGeneralCount,
+      mustHaveMajors, mustHaveGenerals, avoidNameKeywords,
+      wantedDayOffs, blockedTimes, minRating,
+      avoidKeywords, preferredKeywords
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }, [
+    year, semester, minCredit, maxCredit,
+    minMajorCredit, minMajorCount, minGeneralCount,
+    mustHaveMajors, mustHaveGenerals, avoidNameKeywords,
+    wantedDayOffs, blockedTimes, minRating,
+    avoidKeywords, preferredKeywords
+  ]);
+
+  const handleKeywordToggle = (keyword, type) => {
+    if (type === 'avoid') {
+      setPreferredKeywords(prev => prev.filter(k => k !== keyword));
+      setAvoidKeywords(prev => prev.includes(keyword) ? prev.filter(k => k !== keyword) : [...prev, keyword]);
+    } else {
+      setAvoidKeywords(prev => prev.filter(k => k !== keyword));
+      setPreferredKeywords(prev => prev.includes(keyword) ? prev.filter(k => k !== keyword) : [...prev, keyword]);
+    }
+  };
 
   const handleDayOffToggle = (idx) => {
     setWantedDayOffs(prev => prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx]);
   };
 
   const handleAddBlockedTime = () => {
-    if (newBlockStart >= newBlockEnd) return alert("종료 시간이 더 빨라요!");
+    if (newBlockStart >= newBlockEnd) return alert("종료 시간이 시작 시간보다 빨라야 합니다!");
     setBlockedTimes([...blockedTimes, { dayIdx: newBlockDay, startTime: newBlockStart, endTime: newBlockEnd }]);
   };
 
-  const handleAddKeyword = () => {
-    if (keywordInput.trim()) {
-      setAvoidKeywords([...avoidKeywords, keywordInput.trim()]);
-      setKeywordInput("");
-    }
+  const handleAddAvoidKeyword = () => {
+    if (!tempAvoidInput.trim()) return;
+    if (avoidNameKeywords.includes(tempAvoidInput.trim())) return alert("이미 등록된 키워드입니다.");
+    setAvoidNameKeywords([...avoidNameKeywords, tempAvoidInput.trim()]);
+    setTempAvoidInput("");
   };
 
   const handleGenerate = async () => {
@@ -166,184 +215,207 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
       setIsSubmitting(true);
       const requestData = {
         university: user.university || "KOREA",
-        year: Number(year),
-        semester: Number(semester),
-
-        // 🚨 [중요] targetCredit 절대 넣지 마세요! min/max만 보냅니다.
-        minCredit: Number(minCreditRange),
-        maxCredit: Number(maxCreditRange),
-
+        year: Number(year), semester: Number(semester),
+        minCredit: Number(minCredit), maxCredit: Number(maxCredit),
         minMajorCredit: Number(minMajorCredit),
         minMustHaveMajorCount: Number(minMajorCount),
         minMustHaveGeneralCount: Number(minGeneralCount),
+
         mustHaveMajorIds: mustHaveMajors.map(c => c.id),
         mustHaveGeneralIds: mustHaveGenerals.map(c => c.id),
-        avoidKeywords: avoidKeywords,
+
+        avoidNameKeywords: avoidNameKeywords,
+
+        wantedDayOffs: wantedDayOffs.map(idx => DAYS_EN[idx]),
+        avoidKeywords, preferredKeywords,
         blockedTimes: blockedTimes.map(bt => ({
           day: DAYS_EN[bt.dayIdx],
           startTime: bt.startTime,
           endTime: bt.endTime
         })),
-        wantedDayOffs: wantedDayOffs.map(idx => DAYS_EN[idx]),
-        minRating: Number(minRating),
-        onlyMajor: false,
-        excludeNoTime: false
+        minRating: Number(minRating), onlyMajor: false, excludeNoTime: true
       };
       const response = await api.post('/timetable/generate', requestData);
       onNext(response.data);
     } catch (error) {
-      console.error(error);
-      alert("시간표 생성 실패! 조건을 확인해주세요.");
-    } finally {
-      setIsSubmitting(false);
-    }
+      alert(error.response?.data?.message || "시간표 생성 실패!");
+    } finally { setIsSubmitting(false); }
+  };
+
+  // 선택된 강의 렌더링 (카드 형태)
+  const renderSelectedCourse = (course, setList) => {
+    const displayName = course.name.split(/[\(\[]/)[0].trim();
+    const timeDisplayText = course.timeSlots?.length > 0
+        ? course.timeSlots.map(slot => `${DAY_TRANSLATOR[slot.day] || slot.day} ${formatMinuteToTime(slot.startTime)}~${formatMinuteToTime(slot.endTime)}`).join(', ')
+        : "시간 미정";
+
+    return (
+        <div key={course.id} className="w-full bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:border-blue-300 transition-colors relative group">
+          <button onClick={() => setList(prev => prev.filter(x => x.id !== course.id))} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded transition-colors"><X className="size-4"/></button>
+          <h4 className="font-bold text-gray-900 text-sm pr-6 mb-1">{displayName}</h4>
+          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+            <span className="flex items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium"><Hash className="size-3"/>{course.id}</span>
+            <span className="flex items-center gap-0.5"><User className="size-3"/>{course.professor}</span>
+            <span className="text-gray-300">|</span>
+            <span>{course.credit}학점</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md w-fit"><Clock className="size-3.5"/>{timeDisplayText}</div>
+        </div>
+    );
   };
 
   return (
       <div className="max-w-3xl mx-auto px-4 py-8 pb-32">
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">시간표 조건 설정</h2>
-          <p className="text-gray-600">AI가 최적의 시간표를 찾을 수 있도록 조건을 알려주세요.</p>
         </div>
 
         <div className="space-y-6">
           <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-              <Calendar className="size-5 text-blue-600"/> 학기 선택
-            </h3>
+            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Calendar className="size-5 text-blue-600"/> 학기 선택</h3>
             <div className="flex gap-4">
-              <select value={year} onChange={e => setYear(Number(e.target.value))} className="px-4 border rounded-xl bg-gray-50 font-bold outline-none">
-                <option value="2026">2026년</option>
-                <option value="2025">2025년</option>
+              <select value={year} onChange={e => setYear(e.target.value)} className="px-4 border rounded-xl bg-gray-50 font-bold outline-none">
+                <option value="2026">2026년</option><option value="2025">2025년</option>
               </select>
               <div className="flex-1 flex bg-gray-100 rounded-xl p-1">
-                {[{l:'1학기',v:1}, {l:'2학기',v:2}, {l:'여름',v:3}, {l:'겨울',v:4}].map(s => (
-                    <button key={s.v} onClick={() => setSemester(s.v)} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${semester === s.v ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"}`}>{s.l}</button>
+                {[{l:'1학기',v:1}, {l:'2학기',v:2}].map(s => (
+                    <button key={s.v} onClick={() => setSemester(s.v)} className={`flex-1 py-2 rounded-lg text-sm font-bold ${semester === s.v ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"}`}>{s.l}</button>
                 ))}
               </div>
             </div>
           </section>
 
           <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-              <CheckCircle2 className="size-5 text-red-600"/> 필수 강의 담기 (Must Have)
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-bold text-gray-600">꼭 들어야 하는 전공</label>
-                  <button onClick={() => setModalType('major')} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
-                    <Plus className="size-4"/> 강의 검색
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 min-h-[50px] p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300 items-center">
-                  {mustHaveMajors.length === 0 && <span className="text-sm text-gray-400 m-auto">선택된 전공이 없습니다</span>}
-                  {mustHaveMajors.map((c, i) => (
-                      <span key={i} className="bg-white border border-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
-                    {c.name} <button onClick={() => setMustHaveMajors(prev => prev.filter(x => x.id !== c.id))}><X className="size-3 opacity-60 hover:opacity-100 text-black"/></button>
-                  </span>
-                  ))}
-                </div>
+            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><BookOpen className="size-5 text-purple-600"/> 학점 및 과목 구성</h3>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 mb-2 block">최소 총 학점</label>
+                <input type="number" value={minCredit} onChange={e => setMinCredit(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white outline-none"/>
               </div>
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-bold text-gray-600">꼭 들어야 하는 교양</label>
-                  <button onClick={() => setModalType('general')} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
-                    <Plus className="size-4"/> 강의 검색
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 min-h-[50px] p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300 items-center">
-                  {mustHaveGenerals.length === 0 && <span className="text-sm text-gray-400 m-auto">선택된 교양이 없습니다</span>}
-                  {mustHaveGenerals.map((c, i) => (
-                      <span key={i} className="bg-white border border-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
-                    {c.name} <button onClick={() => setMustHaveGenerals(prev => prev.filter(x => x.id !== c.id))}><X className="size-3 opacity-60 hover:opacity-100 text-black"/></button>
-                  </span>
-                  ))}
-                </div>
+              <span className="mt-6 font-bold text-gray-400">~</span>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 mb-2 block">최대 총 학점</label>
+                <input type="number" value={maxCredit} onChange={e => setMaxCredit(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white outline-none"/>
               </div>
             </div>
-          </section>
 
-          <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-              <BookOpen className="size-5 text-purple-600"/> 학점 설정
-            </h3>
-            <div className="grid grid-cols-2 gap-6">
-              {/* 🚨 [UI 변경] targetCredit 입력란 제거됨! */}
-              <div className="col-span-2 flex gap-4 items-end">
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500 mb-2 block">최소 학점</label>
-                  <div className="relative">
-                    <input type="number" value={minCreditRange} onChange={e => setMinCreditRange(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"/>
-                    <span className="absolute right-4 top-3 text-sm text-gray-400 font-bold">학점</span>
-                  </div>
-                </div>
-                <span className="mb-4 text-gray-400 font-bold">~</span>
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500 mb-2 block">최대 학점</label>
-                  <div className="relative">
-                    <input type="number" value={maxCreditRange} onChange={e => setMaxCreditRange(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"/>
-                    <span className="absolute right-4 top-3 text-sm text-gray-400 font-bold">학점</span>
-                  </div>
-                </div>
-              </div>
-
+            <div className="grid grid-cols-3 gap-4 pt-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-2 block">최소 전공 학점</label>
                 <div className="relative">
-                  <input type="number" value={minMajorCredit} onChange={e => setMinMajorCredit(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"/>
-                  <span className="absolute right-4 top-3 text-sm text-gray-400 font-bold">학점</span>
+                  <input type="number" value={minMajorCredit} onChange={e => setMinMajorCredit(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 outline-none transition-all"/>
+                  <span className="absolute right-3 top-3.5 text-[10px] text-gray-400">학점</span>
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-2 block">전공 과목 수</label>
                 <div className="relative">
-                  <input type="number" value={minMajorCount} onChange={e => setMinMajorCount(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"/>
-                  <span className="absolute right-4 top-3 text-sm text-gray-400 font-bold">개</span>
+                  <input type="number" value={minMajorCount} onChange={e => setMinMajorCount(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 outline-none transition-all"/>
+                  <span className="absolute right-3 top-3.5 text-[10px] text-gray-400">개</span>
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-2 block">교양 과목 수</label>
                 <div className="relative">
-                  <input type="number" value={minGeneralCount} onChange={e => setMinGeneralCount(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"/>
-                  <span className="absolute right-4 top-3 text-sm text-gray-400 font-bold">개</span>
+                  <input type="number" value={minGeneralCount} onChange={e => setMinGeneralCount(e.target.value)} className="w-full p-3 border rounded-xl font-bold text-center bg-gray-50 outline-none transition-all"/>
+                  <span className="absolute right-3 top-3.5 text-[10px] text-gray-400">개</span>
                 </div>
               </div>
             </div>
           </section>
 
           <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-              <Settings2 className="size-5 text-green-600"/> 세부 옵션
-            </h3>
+            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><CheckCircle2 className="size-5 text-blue-600"/> 강의 필터링 설정</h3>
+
             <div className="space-y-6">
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-2 block">공강 희망 요일</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-bold text-gray-600">꼭 들어야 하는 전공</label>
+                  <button onClick={() => setModalType('major')} className="text-sm text-blue-600 font-bold flex items-center gap-1"><Plus className="size-4"/> 강의 검색</button>
+                </div>
+                <div className="flex flex-col gap-2 min-h-[50px] p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                  {mustHaveMajors.map(c => renderSelectedCourse(c, setMustHaveMajors))}
+                  {mustHaveMajors.length === 0 && <span className="text-xs text-gray-400 self-center py-2">선택된 전공 강의가 없습니다.</span>}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-bold text-gray-600">꼭 들어야 하는 교양</label>
+                  <button onClick={() => setModalType('general')} className="text-sm text-blue-600 font-bold flex items-center gap-1"><Plus className="size-4"/> 강의 검색</button>
+                </div>
+                <div className="flex flex-col gap-2 min-h-[50px] p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                  {mustHaveGenerals.map(c => renderSelectedCourse(c, setMustHaveGenerals))}
+                  {mustHaveGenerals.length === 0 && <span className="text-xs text-gray-400 self-center py-2">선택된 교양 강의가 없습니다.</span>}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
+                <label className="text-sm font-bold text-red-600 mb-2 flex items-center gap-1"><Ban className="size-4"/> 강의명 키워드로 제외 (예: 채플, 진로)</label>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {avoidNameKeywords.map((k, i) => (
+                      <span key={i} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold flex items-center gap-2 border border-red-100 shadow-sm">
+                        {k} <button onClick={() => setAvoidNameKeywords(prev => prev.filter((_, idx) => idx !== i))}><X className="size-3"/></button>
+                      </span>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                      type="text"
+                      value={tempAvoidInput}
+                      onChange={e => setTempAvoidInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAddAvoidKeyword()}
+                      placeholder="제외할 단어 입력 (Enter)"
+                      className="flex-1 p-3 border rounded-xl bg-gray-50 focus:bg-white outline-none font-medium"
+                  />
+                  <button onClick={handleAddAvoidKeyword} className="bg-red-500 text-white px-5 py-2 rounded-xl font-bold hover:bg-red-600 transition-colors shadow-sm">추가</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2"><Settings2 className="size-5 text-green-600"/> 세부 옵션 설정</h3>
+            <div className="space-y-8">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">공강 희망 요일</label>
                 <div className="flex gap-2">
                   {DAYS_KO.map((day, idx) => (
-                      <button key={day} onClick={() => handleDayOffToggle(idx)} className={`flex-1 py-3 rounded-xl font-bold border transition-all ${wantedDayOffs.includes(idx) ? "bg-green-50 border-green-500 text-green-700" : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"}`}>{day}</button>
+                      <button key={day} onClick={() => handleDayOffToggle(idx)} className={`flex-1 py-3 rounded-xl font-bold border transition-all ${wantedDayOffs.includes(idx) ? "bg-green-50 border-green-500 text-green-700 shadow-sm" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"}`}>{day}</button>
                   ))}
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-2 block">제외할 시간 (알바 등)</label>
+
+              <div className="pt-4">
+                <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">제외할 시간 (알바, 개인일정 등)</label>
                 <div className="flex flex-wrap gap-2 mb-3">
                   {blockedTimes.map((bt, i) => (
-                      <span key={i} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold flex items-center gap-2 border border-red-100">
-                    {DAYS_KO[bt.dayIdx]} {bt.startTime}~{bt.endTime} <button onClick={() => setBlockedTimes(blockedTimes.filter((_, idx) => idx !== i))}><X className="size-4"/></button>
+                      <span key={i} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-bold flex items-center gap-2 border border-red-100 shadow-sm">
+                    {DAYS_KO[bt.dayIdx]} {bt.startTime}~{bt.endTime}
+                        <button onClick={() => setBlockedTimes(blockedTimes.filter((_, idx) => idx !== i))}><X className="size-4"/></button>
                   </span>
                   ))}
-                  {blockedTimes.length === 0 && <span className="text-sm text-gray-400">등록된 시간이 없습니다</span>}
+                  {blockedTimes.length === 0 && <span className="text-sm text-gray-400 px-1">등록된 시간이 없습니다</span>}
                 </div>
-                <div className="flex gap-2 p-2 bg-gray-50 rounded-xl border border-gray-200">
-                  <select value={newBlockDay} onChange={e => setNewBlockDay(Number(e.target.value))} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none"><option value="0">월</option><option value="1">화</option><option value="2">수</option><option value="3">목</option><option value="4">금</option></select>
-                  <select value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none">{TIME_SLOTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select>
-                  <span className="self-center text-gray-400">~</span>
-                  <select value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none">{TIME_SLOTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}</select>
-                  <button onClick={handleAddBlockedTime} className="bg-red-500 text-white px-4 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors">추가</button>
+
+                <div className="flex gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 items-center">
+                  <select value={newBlockDay} onChange={e => setNewBlockDay(Number(e.target.value))} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none font-bold text-gray-700 flex-1">
+                    {DAYS_KO.map((d,i)=><option key={d} value={i}>{d}요일</option>)}
+                  </select>
+                  <select value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none font-bold text-gray-700 flex-1">
+                    {TIME_SLOTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <span className="text-gray-400 font-bold">~</span>
+                  <select value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)} className="bg-white border rounded-lg px-2 py-2 text-sm outline-none font-bold text-gray-700 flex-1">
+                    {TIME_SLOTS.map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <button onClick={handleAddBlockedTime} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 transition-colors shadow-sm whitespace-nowrap">추가</button>
                 </div>
               </div>
-              <div className="pt-6 border-t border-gray-100 space-y-6">
+
+              <div className="pt-4 space-y-8">
                 <div>
                   <div className="flex justify-between mb-2">
                     <label className="text-xs font-bold text-gray-500">최소 강의 평점</label>
@@ -351,25 +423,23 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
                   </div>
                   <input type="range" min="0" max="5" step="0.5" value={minRating} onChange={e => setMinRating(e.target.value)} className="w-full accent-orange-500 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-2 block">기피 키워드 (예: 영어, 발표, 팀플)</label>
-                  <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={keywordInput}
-                        onChange={e => setKeywordInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAddKeyword()}
-                        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-500 outline-none transition-all"
-                        placeholder="키워드 입력 후 엔터"
-                    />
-                    <button onClick={handleAddKeyword} className="bg-gray-800 text-white px-5 rounded-xl font-bold hover:bg-gray-900 transition-colors">추가</button>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-xs font-bold text-blue-500 mb-3 block uppercase tracking-wider">선호 키워드</label>
+                    <div className="flex flex-wrap gap-2">
+                      {recommendedKeywords.map(k => (
+                          <button key={k} onClick={() => handleKeywordToggle(k, 'prefer')} className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${preferredKeywords.includes(k) ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm" : "bg-white border-gray-200 text-gray-400 opacity-60"}`}>⭐ {k}</button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {avoidKeywords.map((k, i) => (
-                        <span key={i} className="bg-gray-100 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 text-gray-700">
-                        {k} <button onClick={() => setAvoidKeywords(avoidKeywords.filter((_, idx) => idx !== i))}><X className="size-3 hover:text-red-500 transition-colors"/></button>
-                      </span>
-                    ))}
+                  <div>
+                    <label className="text-xs font-bold text-red-500 mb-3 block uppercase tracking-wider">기피 키워드</label>
+                    <div className="flex flex-wrap gap-2">
+                      {recommendedKeywords.map(k => (
+                          <button key={k} onClick={() => handleKeywordToggle(k, 'avoid')} className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${avoidKeywords.includes(k) ? "bg-red-50 border-red-500 text-red-700 shadow-sm" : "bg-white border-gray-200 text-gray-400 opacity-60"}`}>🚫 {k}</button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -377,15 +447,11 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
           </section>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="fixed bottom-0 left-0 right-0 bg-white p-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           <div className="max-w-3xl mx-auto flex gap-3">
-            <button onClick={onBack} className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors">이전</button>
-            <button onClick={handleGenerate} disabled={isSubmitting} className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-bold text-lg flex justify-center items-center gap-2 hover:shadow-lg hover:opacity-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed">
-              {isSubmitting ? (
-                  <>AI가 시간표를 만드는 중... <span className="animate-spin ml-2">⏳</span></>
-              ) : (
-                  <>AI 시간표 생성하기 <Sparkles className="size-5 fill-white"/></>
-              )}
+            <button onClick={onBack} className="px-6 py-3 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-colors">이전</button>
+            <button onClick={handleGenerate} disabled={isSubmitting} className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-bold text-lg flex justify-center items-center gap-2 hover:opacity-90 transition-all disabled:opacity-70">
+              {isSubmitting ? "AI 시간표 생성 중..." : <>AI 시간표 생성하기 <Sparkles className="size-5 fill-white"/></>}
             </button>
           </div>
         </div>
@@ -395,9 +461,11 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
             type={modalType}
             userUniversity={user?.university}
             onClose={() => setModalType(null)}
-            onSelect={(course) => {
-              if (modalType === 'major') setMustHaveMajors([...mustHaveMajors, course]);
-              else setMustHaveGenerals([...mustHaveGenerals, course]);
+            onSelect={c => {
+              if (modalType === 'avoid') { setTempAvoidInput(c.name); return; }
+              const isAlreadyAdded = mustHaveMajors.some(m => m.id === c.id) || mustHaveGenerals.some(g => g.id === c.id);
+              if (isAlreadyAdded) { alert("이미 필수 목록에 담은 강의입니다!"); return; }
+              (modalType === 'major' ? setMustHaveMajors : setMustHaveGenerals)(prev => [...prev, c]);
             }}
         />
       </div>
