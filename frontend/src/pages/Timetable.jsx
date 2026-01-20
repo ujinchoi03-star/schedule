@@ -84,6 +84,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
           semester: 1,
           minCredit: user.preferences?.minCredits || 15,
           maxCredit: user.preferences?.maxCredits || 18,
+          minMajorCredit: 9,
           minMustHaveMajorCount: 0,
           minMustHaveGeneralCount: 0,
           mustHaveMajorIds: [],

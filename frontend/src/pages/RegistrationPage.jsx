@@ -15,61 +15,6 @@ import {
   Send,
 } from 'lucide-react';
 
-// ----------------------------------------------------------------------
-// 🚨 [임시 데이터] 백엔드 연동 전 화면 테스트를 위해 내부에 정의했습니다.
-// ----------------------------------------------------------------------
-const MOCK_SCHEDULES = [
-  {
-    university: 'KOREA',
-    semester: '2026-1학기',
-    events: [
-      { id: 1, title: '장바구니 신청', category: 'registration', startDate: '2026-02-05', endDate: '2026-02-07', time: '10:00 ~ 17:00', description: '희망 강의를 미리 담아두는 기간입니다.' },
-      { id: 2, title: '본 수강신청 (4학년)', category: 'registration', startDate: '2026-02-13', endDate: '2026-02-13', time: '10:00 ~ 09:00 (익일)', target: '4학년 재학생' },
-      { id: 3, title: '본 수강신청 (3학년)', category: 'registration', startDate: '2026-02-14', endDate: '2026-02-14', time: '10:00 ~ 09:00 (익일)', target: '3학년 재학생' },
-      { id: 4, title: '전체 수강신청', category: 'registration', startDate: '2026-02-17', endDate: '2026-02-18', time: '10:00 ~ 17:00', target: '전체 학년' },
-      { id: 5, title: '수강 정정 기간', category: 'add-drop', startDate: '2026-03-02', endDate: '2026-03-08', time: '18:00 마감', description: '개강 후 수강 신청 변경 기간입니다.' },
-    ]
-  },
-  {
-    university: 'HANYANG',
-    semester: '2026-1학기',
-    events: [
-      { id: 1, title: '희망수업 조회', category: 'registration', startDate: '2026-02-01', endDate: '2026-02-03' },
-      { id: 2, title: '학년별 수강신청', category: 'registration', startDate: '2026-02-10', endDate: '2026-02-14' },
-    ]
-  }
-];
-
-const MOCK_TIPS = [
-  {
-    id: 'tip-1',
-    category: 'strategy',
-    title: '장바구니 담을 때 우선순위 꿀팁',
-    content: '경쟁률 높은 과목은 무조건 1순위로 두세요. 특히 인기 교양은 매크로 돌리는 사람도 많아서...',
-    userName: '고인물선배',
-    department: '컴퓨터학과',
-    createdAt: '2026-01-15',
-    likes: 42,
-    likedByUser: true,
-  },
-  {
-    id: 'tip-2',
-    category: 'technical',
-    title: '서버 시간 확인 사이트 추천',
-    content: '네이비즘 많이 쓰는데 학교 서버마다 미세하게 다른 거 아시죠? 학교 홈페이지 하단 시간 기준이 제일 정확합니다.',
-    userName: '정보통',
-    department: '정보보호학부',
-    createdAt: '2026-01-18',
-    likes: 15,
-    likedByUser: false,
-  },
-];
-
-const MOCK_COMMENTS = [
-  { id: 'C1', tipId: 'tip-1', userName: '신입생', content: '감사합니다! 혹시 PC방 가는 게 좋을까요?', createdAt: '2026-01-16' },
-];
-// ----------------------------------------------------------------------
-
 export function RegistrationPage({ user, onBack }) {
   // 1. 상태 관리
   const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'tips'
@@ -181,21 +126,13 @@ export function RegistrationPage({ user, onBack }) {
 
   return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
               <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="size-5" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  수강신청 정보
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  {user?.name}님 · {user?.university} · {user?.department}
-                </p>
-              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">수강신청 정보</h1>
             </div>
           </div>
         </header>
