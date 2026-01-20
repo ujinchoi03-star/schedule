@@ -47,14 +47,14 @@ export function ReviewsPage({ user, onBack }) {
   const [summary, setSummary] = useState({ count: 0, averageRating: 0.0 });
   const [userLikes, setUserLikes] = useState({}); // 내가 좋아요 한 리뷰 목록
 
-  // ✅ 유저 학교명 -> 백엔드 코드 매핑 (HANYANG / KOREA)
+  // 🌟 [수정됨] 유저 학교명 -> 백엔드 코드 매핑 (한글/영어 모두 대응)
   const uniCode = useMemo(() => {
     const u = user?.university || '';
-    if (u.includes('한양')) return 'HANYANG';
-    if (u.includes('고려')) return 'KOREA';
+    // 1. 한글('한양') 또는 영어('HANYANG') 포함 여부 확인
+    if (u.includes('한양') || u === 'HANYANG') return 'HANYANG';
+    if (u.includes('고려') || u === 'KOREA') return 'KOREA';
     return 'KOREA'; // 기본값
   }, [user?.university]);
-
   // 1. 강의 목록 불러오기
   useEffect(() => {
     if (!uniCode) return;
@@ -410,14 +410,17 @@ export function ReviewsPage({ user, onBack }) {
                       {loadingCourses ? "강의 목록 로딩 중..." : "검색 결과가 없습니다."}
                     </p>
                 ) : (
-                    filteredCourses.map((course) => {
+                    // 🚀 [수정 1] .slice(0, 100) 추가해서 최대 100개까지만 렌더링 (렉 방지)
+                    filteredCourses.slice(0, 100).map((course, index) => {
+
                       const s = summaryMap[course.id] || { count: 0, averageRating: 0 };
                       const avgRating = s.averageRating.toFixed(1);
                       const count = s.count;
 
                       return (
                           <button
-                              key={course.id}
+                              // 🚀 [수정 2] key를 index와 섞어서 중복 방지!
+                              key={`${course.id}-${index}`}
                               onClick={() => {
                                 setSelectedCourseId(course.id);
                                 setShowWriteReview(false);
