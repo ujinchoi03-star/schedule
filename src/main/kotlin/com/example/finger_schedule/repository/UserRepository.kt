@@ -2,12 +2,12 @@ package com.example.finger_schedule.repository
 
 import com.example.finger_schedule.domain.User
 import org.springframework.data.jpa.repository.JpaRepository
-import java.util.Optional
 
-interface UserRepository : JpaRepository<User, Long> {
-    // 이메일로 로그인하니까 이메일로 찾는 기능 필수!
-    fun findByEmail(email: String): Optional<User>
+interface UserRepository : JpaRepository<User, String> {
 
     // 중복 가입 방지용
     fun existsByEmail(email: String): Boolean
+
+    // 👇 이거 하나만 남기면 됩니다! (반환 타입을 User? 로 통일)
+    fun findByEmail(email: String): User?
 }

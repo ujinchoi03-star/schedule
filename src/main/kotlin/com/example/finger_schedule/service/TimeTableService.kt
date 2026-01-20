@@ -1,8 +1,11 @@
 package com.example.finger_schedule.service
 
 import com.example.finger_schedule.domain.Lecture
+import com.example.finger_schedule.domain.SavedTimetable
 import com.example.finger_schedule.dto.*
 import com.example.finger_schedule.repository.LectureRepository
+import com.example.finger_schedule.repository.SavedTimetableRepository
+import com.example.finger_schedule.repository.UserRepository
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import jakarta.annotation.PostConstruct
@@ -14,7 +17,10 @@ import java.util.regex.Pattern
 
 @Service
 class TimeTableService(
-    private val lectureRepository: LectureRepository
+    private val lectureRepository: LectureRepository,
+    // 🚀 [추가] 필요한 레포지토리 주입
+    private val userRepository: UserRepository,
+    private val savedTimetableRepository: SavedTimetableRepository
 ) {
     private var searchCount = 0
 
@@ -40,23 +46,19 @@ class TimeTableService(
         }
     }
 
-    // 🔍 [수정] 검색 로직: 강의명, 교수명, 학수번호(ID) 모두 검색 가능하도록 변경
-    // Controller에서 이 함수를 호출할 때 keyword를 넘겨줘야 합니다.
+    // 🔍 검색 로직
     fun getSearchLectures(university: String?, keyword: String?): List<LectureSearchResponse> {
-        // 1. 먼저 대학 기준으로 전체 가져오기
         var lectures = if (university != null) lectureRepository.findAllByUniversity(university) else lectureRepository.findAll()
 
-        // 2. 🚀 [핵심] 키워드가 있을 경우 필터링 (이름 OR 교수 OR 학수번호)
         if (!keyword.isNullOrBlank()) {
             val k = keyword.trim()
             lectures = lectures.filter { lecture ->
-                lecture.name.contains(k, ignoreCase = true) ||      // 강의명 검색
-                        lecture.professor.contains(k, ignoreCase = true) || // 교수명 검색
-                        lecture.id.contains(k, ignoreCase = true)           // 학수번호 검색
+                lecture.name.contains(k, ignoreCase = true) ||
+                        lecture.professor.contains(k, ignoreCase = true) ||
+                        lecture.id.contains(k, ignoreCase = true)
             }
         }
 
-        // 3. DTO 변환 (요일별로 흩어진 강의를 하나로 그룹화)
         return lectures.groupBy { it.id }.map { (id, groupedLectures) ->
             val first = groupedLectures.first()
             LectureSearchResponse(
@@ -75,12 +77,54 @@ class TimeTableService(
         }
     }
 
+    // 🚀 시간표 저장 (수정: 클래스 내부로 이동)
+    fun saveTimetable(request: SaveTimetableRequest): Long {
+        val user = userRepository.findByEmail(request.userId)
+            ?: throw IllegalArgumentException("해당 이메일(ID)을 가진 유저를 찾을 수 없습니다: ${request.userId}")
+
+// [수정 후] 학수번호(String)로 찾기
+        val lectures = lectureRepository.findByIdIn(request.lectureIds)
+
+        val newTimetable = SavedTimetable(
+            name = request.name,
+            user = user,
+            lectures = lectures
+        )
+
+        val saved = savedTimetableRepository.save(newTimetable)
+        return saved.id!!
+    }
+
+    // 🚀 저장된 시간표 삭제 (수정: 클래스 내부로 이동)
+    fun deleteSavedTimetable(id: Long) {
+        savedTimetableRepository.deleteById(id)
+    }
+
+    // 🚀 사용자의 저장된 시간표 조회 (수정: 클래스 내부로 이동)
+    fun getSavedTimetables(userId: String): List<SavedTimetableResponse> {
+        val user = userRepository.findByEmail(userId)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+
+        return user.savedTimetables.map { saved ->
+            SavedTimetableResponse(
+                id = saved.id!!,
+                name = saved.name,
+                lectures = saved.lectures.groupBy { it.id }.map { (id, list) ->
+                    val first = list.first()
+                    LectureSearchResponse(
+                        id = id, name = first.name, professor = first.professor, credit = first.credit, rating = first.rating, category = first.category, details = first.details, department = first.department, timeRoom = first.timeRoom, university = first.university,
+                        timeSlots = list.map { SearchTimeSlot(it.day, it.startTime, it.endTime) }
+                    )
+                }
+            )
+        }
+    }
+
     // 🚀 시간표 생성 로직
     fun generate(request: TimeTableRequest): List<List<Lecture>> {
         val allLectures = lectureRepository.findAllByUniversity(request.university)
         val mustHaveIds = request.mustHaveMajorIds + request.mustHaveGeneralIds
 
-        // 1. 제외 시간(BlockedTime) 가상 스케줄 생성
         val initialSchedule = mutableListOf<CourseGroup>()
         if (request.blockedTimes.isNotEmpty()) {
             val blockedLectures = request.blockedTimes.map { block ->
@@ -104,11 +148,9 @@ class TimeTableService(
             )
         }
 
-        // 2. 필수 강의 충돌 검사 (모아서 에러 던지기)
         val conflictMessages = mutableListOf<String>()
 
         if (mustHaveIds.isNotEmpty()) {
-            // (1) 공강 요일 충돌
             allLectures.forEach { lecture ->
                 if (mustHaveIds.contains(lecture.id)) {
                     if (request.wantedDayOffs.contains(lecture.day)) {
@@ -119,7 +161,6 @@ class TimeTableService(
                 }
             }
 
-            // (2) 제외 시간 충돌
             val mustHaveCandidates = allLectures
                 .filter { mustHaveIds.contains(it.id) }
                 .groupBy { it.id }
@@ -146,7 +187,6 @@ class TimeTableService(
             )
         }
 
-        // 3. 후보군 필터링
         val candidates = allLectures.groupBy { it.id }.map { (_, lectures) ->
             val first = lectures.first()
             val hasPreference = request.preferredKeywords.any { k -> first.details.contains(k, ignoreCase = true) }
@@ -162,12 +202,10 @@ class TimeTableService(
         }.filter { group ->
             if (group.isMustHaveMajor || group.isMustHaveGeneral) return@filter true
 
-            // 🚀 강의명 키워드 기피 로직
             if (request.avoidNameKeywords.isNotEmpty()) {
                 if (request.avoidNameKeywords.any { k -> group.name.contains(k, ignoreCase = true) }) return@filter false
             }
 
-            // 기존 상세정보(details) 기피 로직
             if (request.avoidKeywords.isNotEmpty()) {
                 if (request.avoidKeywords.any { k -> group.details.contains(k, ignoreCase = true) }) return@filter false
                 if (request.avoidKeywords.contains("1학점 강의") && group.credit == 1.0) return@filter false

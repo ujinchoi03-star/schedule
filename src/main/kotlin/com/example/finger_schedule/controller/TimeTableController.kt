@@ -1,7 +1,7 @@
 package com.example.finger_schedule.controller
 
 import com.example.finger_schedule.domain.Lecture
-import com.example.finger_schedule.dto.* // 🚀 이 줄을 추가하면 모든 DTO를 인식합니다.
+import com.example.finger_schedule.dto.*
 import com.example.finger_schedule.service.TimeTableService
 import org.springframework.web.bind.annotation.*
 
@@ -18,7 +18,23 @@ class TimeTableController(
 
     @GetMapping("/unique-lectures")
     fun getUniqueLectures(@RequestParam university: String?): List<LectureSearchResponse> {
-        // ✅ 이제 LectureSearchResponse가 정상적으로 인식됩니다.
-        return timeTableService.getSearchLectures(university,null)
+        return timeTableService.getSearchLectures(university, null)
+    }
+
+    // 🚀 [수정] 클래스 내부로 통합됨
+
+    @PostMapping("/save")
+    fun saveTimetable(@RequestBody request: SaveTimetableRequest): Long {
+        return timeTableService.saveTimetable(request)
+    }
+
+    @DeleteMapping("/saved/{id}")
+    fun deleteSavedTimetable(@PathVariable id: Long) {
+        timeTableService.deleteSavedTimetable(id)
+    }
+
+    @GetMapping("/saved/{userId}")
+    fun getSavedTimetables(@PathVariable userId: String): List<SavedTimetableResponse> {
+        return timeTableService.getSavedTimetables(userId)
     }
 }

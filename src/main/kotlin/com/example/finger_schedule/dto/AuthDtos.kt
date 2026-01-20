@@ -15,6 +15,7 @@ data class LoginRequest(
 data class LoginResponse(
     val token: String,
     val nickname: String,
+    val email: String,
     val university: String? = null,
     val department: String? = null,
     val grade: Int? = null
