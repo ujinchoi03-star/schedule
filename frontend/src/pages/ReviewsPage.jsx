@@ -134,11 +134,30 @@ export function ReviewsPage({ user, onBack }) {
 
   const filteredCourses = useMemo(() => {
     if (!courses) return [];
-    return courses.filter(
+
+    // 1단계: 검색어로 필터링 (기존 로직)
+    const matched = courses.filter(
         (course) =>
             course.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             course.professor?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // 2단계: 🚀 [추가됨] 이름+교수님이 같으면 중복 제거 (하나만 남기기)
+    const uniqueMap = new Map();
+
+    matched.forEach((course) => {
+      // 중복을 판별할 키: "강의명-교수님" (예: "기초공학-김철수")
+      const key = `${course.name}-${course.professor}`;
+
+      // 아직 맵에 없으면 추가 (처음 발견한 것만 남김)
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, course);
+      }
+    });
+
+    // 맵에 남은 유일한 강의들만 배열로 반환
+    return Array.from(uniqueMap.values());
+
   }, [courses, searchTerm]);
 
   const selectedCourse = selectedCourseId
@@ -233,21 +252,27 @@ export function ReviewsPage({ user, onBack }) {
 
   const handleScrapReview = async (reviewId) => {
     try {
-      const res = await api.post(`/reviews/${reviewId}/scrap`, null, {
-        params: { userId: user?.email }
+      // 🚀 백엔드에 스크랩 토글 요청 (userId는 현재 로그인한 유저 정보)
+      const response = await api.post(`/reviews/${reviewId}/scrap`, null, {
+        params: { userId: user.email }
       });
-      const data = res.data;
 
-      setReviews((prev) =>
-          prev.map((r) =>
-              (r.id === reviewId) ? { ...r, scrapedByUser: data.scraped } : r
+      const isScrapped = response.data.scrapped;
+
+      // 🚀 중요: 현재 리뷰 목록 상태(reviews)에서 해당 리뷰의 'scrapedByUser' 상태를 즉시 변경
+      setReviews(prevReviews =>
+          prevReviews.map(review =>
+              review.id === reviewId
+                  ? { ...review, scrapedByUser: isScrapped }
+                  : review
           )
       );
-    } catch {
-      alert('스크랩 처리 실패');
+
+    } catch (error) {
+      console.error("스크랩 처리 실패:", error);
+      alert("스크랩 처리 중 오류가 발생했습니다.");
     }
   };
-
   const loadComments = async (reviewId) => {
     try {
       const res = await api.get(`/reviews/${reviewId}/comments`);
@@ -660,8 +685,19 @@ export function ReviewsPage({ user, onBack }) {
                                       <MessageSquare className="size-4" />
                                       <span>{review.commentsCount || 0}</span>
                                     </button>
-                                    <button onClick={() => handleScrapReview(review.id)} className={`flex items-center gap-1 ${review.scrapedByUser ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-500'}`}>
-                                      <Bookmark className={`size-4 ${review.scrapedByUser ? 'fill-yellow-500' : ''}`} />
+                                    <button
+                                        onClick={() => handleScrapReview(review.id)}
+                                        className="flex items-center gap-1 transition-colors"
+                                    >
+                                      <Bookmark
+                                          size={18}
+                                          // 🚀 스크랩 상태면 검은색으로 채우고, 아니면 투명하게 설정
+                                          fill={review.scrapedByUser ? "black" : "none"}
+                                          className={review.scrapedByUser ? "text-black" : "text-gray-400"}
+                                      />
+                                      <span className={review.scrapedByUser ? "text-black font-bold" : "text-gray-400"}>
+    스크랩
+  </span>
                                     </button>
                                   </div>
 
