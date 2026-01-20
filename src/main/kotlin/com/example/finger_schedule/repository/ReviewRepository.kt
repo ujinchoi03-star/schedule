@@ -12,6 +12,8 @@ interface ReviewRepository : JpaRepository<Review, Long> {
 
     fun countByLectureId(lectureId: String): Long
 
+    fun findAllByUserIdOrderByCreatedAtDesc(userId: String): List<Review>
+
     @Query("select coalesce(avg(r.rating), 0) from Review r where r.lectureId = :lectureId")
     fun avgRatingByLectureId(@Param("lectureId") lectureId: String): Double
 

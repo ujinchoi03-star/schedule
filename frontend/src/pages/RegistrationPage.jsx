@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { mockSchedules, mockTips, mockComments } from '../data/mockRegistration';
+import { useState, useEffect } from 'react';
+import { mockSchedules } from '../data/mockRegistration'; // schedule은 아직 mock 유지
 import {
   ArrowLeft,
   Calendar,
@@ -14,70 +14,99 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  Bookmark,
 } from 'lucide-react';
 
 export function RegistrationPage({ user, onBack }) {
-  const [activeTab, setActiveTab] = useState('schedule'); // 'schedule' | 'tips'
+  const [activeTab, setActiveTab] = useState('schedule');
   const [showWriteTip, setShowWriteTip] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('likes-desc'); // 'likes-desc' | 'likes-asc' | 'latest'
+  const [sortBy, setSortBy] = useState('likes-desc');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedTipId, setExpandedTipId] = useState(null);
+
+  // 📝 팁 작성 상태
   const [newTip, setNewTip] = useState({
     title: '',
     content: '',
-    category: 'general', // 'strategy' | 'technical' | 'course' | 'general'
+    category: 'general',
+    isAnonymous: false,
   });
 
-  const [tips, setTips] = useState(mockTips);
-  const [tipComments, setTipComments] = useState(mockComments);
+  const [tips, setTips] = useState([]); // 빈 배열로 시작
+  const [tipComments, setTipComments] = useState([]); // 전체 댓글 대신 팁별로 로딩하는 방식으로 변경 예정
   const [showCommentsForTip, setShowCommentsForTip] = useState(null);
-  const [newComment, setNewComment] = useState({}); // { [tipId]: string }
+  const [newComment, setNewComment] = useState({});
 
-  // 현재 사용자의 학교 일정 찾기
+  // 현재 사용자의 학교 일정 찾기 (일정은 아직 Mock)
   const schedule = mockSchedules.find((s) => s.university === user.university);
 
-  // 카테고리별 필터링
-  const filteredTips = tips
-    .filter((tip) => {
-      const matchesCategory = selectedCategory === 'all' || tip.category === selectedCategory;
-      const matchesSearch =
-        tip.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tip.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tip.userName.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'likes-desc') return b.likes - a.likes;
-      if (sortBy === 'likes-asc') return a.likes - b.likes;
-      if (sortBy === 'latest')
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      return 0;
-    });
+  // ✅ 팁 목록 불러오기 (검색, 필터, 정렬 적용)
+  const fetchTips = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        university: user.university,
+        category: selectedCategory,
+        search: searchTerm,
+        sort: sortBy,
+        userId: user?.email || 'anonymous' // 🌟 조회 시에도 이메일로 '내가 좋아요 눌렀는지' 확인
+      });
 
-  const handleSubmitTip = () => {
+      const res = await fetch(`http://localhost:8080/api/tips?${queryParams}`);
+      if (!res.ok) throw new Error('Failed to fetch tips');
+      const data = await res.json();
+      setTips(data);
+    } catch (error) {
+      console.error("Error fetching tips:", error);
+    }
+  };
+
+  // 조건이 바뀔 때마다 다시 불러오기
+  useEffect(() => {
+    if (activeTab === 'tips') {
+      fetchTips();
+    }
+  }, [activeTab, selectedCategory, sortBy, searchTerm, user.university]);
+
+  // filteredTips는 이제 서버에서 다 처리해서 오므로 tips 그대로 사용
+  const filteredTips = tips;
+
+  const handleSubmitTip = async () => {
     if (!newTip.title.trim() || !newTip.content.trim()) {
       alert('제목과 내용을 모두 입력해주세요.');
       return;
     }
 
-    alert('팁이 등록되었습니다!');
-    setShowWriteTip(false);
+    // 🌟 학과 정보 유효성 검사 (사용자 요청 반영: 등록된 학과가 있어야 함)
+    if (!user.department) {
+      alert('학과 정보가 없습니다. 마이페이지에서 학과를 설정해주세요.');
+      return;
+    }
 
-    const createdAt = new Date().toISOString().split('T')[0];
-    const newTipObj = {
-      ...newTip,
-      id: `tip-${tips.length + 1}`,
-      userName: user.name,
-      department: user.department,
-      createdAt,
-      likes: 0,
-      comments: 0,
-      likedByUser: false,
-    };
+    try {
+      const res = await fetch('http://localhost:8080/api/tips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newTip,
+          university: user.university,
+          userId: user.email, // 🌟 사용자의 이메일(아이디)로 구분합니다.
+          userName: user.name,
+          department: user.department, // 이제 '미소속' 같은 임시 값이 들어가지 않고, 무조건 등록된 학과가 들어갑니다.
+          isAnonymous: newTip.isAnonymous
+        }),
+      });
 
-    setTips([...tips, newTipObj]);
-    setNewTip({ title: '', content: '', category: 'general' });
+      if (!res.ok) throw new Error('Failed to create tip');
+
+      alert('팁이 등록되었습니다!');
+      setShowWriteTip(false);
+      setNewTip({ title: '', content: '', category: 'general', isAnonymous: false });
+      fetchTips(); // 목록 새로고침
+    } catch (e) {
+      console.error(e);
+      alert('등록 중 오류가 발생했습니다.');
+    }
   };
 
   const getCategoryColor = (category) => {
@@ -85,9 +114,15 @@ export function RegistrationPage({ user, onBack }) {
       case 'registration':
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'add-drop':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'tuition':
+      case '정정기간':
         return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'tuition':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case '모의수강신청':
+      case '희망과목등록':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case '수강포기':
+        return 'bg-red-100 text-red-700 border-red-200';
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';
     }
@@ -114,36 +149,90 @@ export function RegistrationPage({ user, onBack }) {
     }
   };
 
-  const handleLikeTip = (tipId) => {
-    setTips((prevTips) =>
-      prevTips.map((tip) => {
-        if (tip.id === tipId) {
-          const isLiked = tip.likedByUser;
-          return {
-            ...tip,
-            likes: isLiked ? tip.likes - 1 : tip.likes + 1,
-            likedByUser: !isLiked,
-          };
-        }
-        return tip;
-      })
-    );
+  const handleLikeTip = async (tipId) => {
+    try {
+      // 🌟 좋아요도 이메일(아이디)로 기록합니다.
+      const userId = user?.email || 'anonymous';
+      const res = await fetch(`http://localhost:8080/api/tips/${tipId}/like?userId=${userId}`, {
+        method: 'POST'
+      });
+
+      if (!res.ok) throw new Error('Like failed');
+      const data = await res.json(); // { liked: boolean, likesCount: number }
+
+      setTips(prev => prev.map(tip =>
+        tip.id === tipId
+          ? { ...tip, likedByUser: data.liked, likesCount: data.likesCount }
+          : tip
+      ));
+    } catch (e) {
+      console.error("Like error:", e);
+    }
   };
 
-  const handleAddComment = (tipId) => {
+  const handleScrapTip = async (tipId) => {
+    try {
+      const userId = user?.email || 'anonymous';
+      const res = await fetch(`http://localhost:8080/api/tips/${tipId}/scrap?userId=${userId}`, {
+        method: 'POST'
+      });
+
+      if (!res.ok) throw new Error('Scrap failed');
+      const data = await res.json(); // { scraped: boolean }
+
+      setTips(prev => prev.map(tip =>
+        tip.id === tipId
+          ? { ...tip, scrapedByUser: data.scraped }
+          : tip
+      ));
+    } catch (e) {
+      console.error("Scrap error:", e);
+    }
+  };
+
+  const handleAddComment = async (tipId) => {
     if (!newComment[tipId]?.trim()) return;
 
-    const newCommentObj = {
-      id: `C${Date.now()}`,
-      tipId,
-      userId: user.id,
-      userName: user.name,
-      content: newComment[tipId],
-      createdAt: new Date().toISOString().split('T')[0],
-    };
+    try {
+      const res = await fetch(`http://localhost:8080/api/tips/${tipId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: newComment[tipId],
+          userId: user.email || 'anonymous', // 🌟 댓글도 이메일로 기록
+          userName: user.name
+        })
+      });
 
-    setTipComments((prev) => [...prev, newCommentObj]);
-    setNewComment((prev) => ({ ...prev, [tipId]: '' }));
+      if (!res.ok) throw new Error('Comment failed');
+
+      setNewComment((prev) => ({ ...prev, [tipId]: '' }));
+      // 댓글 목록 새로고침
+      fetchComments(tipId);
+
+      // 팁 목록의 댓글 수 업데이트 (선택 사항)
+      fetchTips();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // 댓글 불러오기 함수
+  const fetchComments = async (tipId) => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/tips/${tipId}/comments`);
+      const data = await res.json();
+      // 전체 tipComments 배열 대신, 해당 팁의 댓글만 관리하거나 필터링해서 보여줌
+      // 여기서는 간단히 전체 배열에 덮어쓰기보다, 로컬 상태 관리가 필요함.
+      // 하지만 기존 구조(tipComments가 전체 배열)를 유지하려면:
+      setTipComments(prev => {
+        // 기존 것 중 해당 팁 댓글 다 지우고 새거 추가 (비효율적이지만 기존 구조 유지 시)
+        const others = prev.filter(c => c.tipId !== tipId);
+        return [...others, ...data];
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -175,22 +264,20 @@ export function RegistrationPage({ user, onBack }) {
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setActiveTab('schedule')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${
-              activeTab === 'schedule'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${activeTab === 'schedule'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
           >
             <Calendar className="size-5" />
             수강신청 일정
           </button>
           <button
             onClick={() => setActiveTab('tips')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${
-              activeTab === 'tips'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${activeTab === 'tips'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+              }`}
           >
             <Sparkles className="size-5" />
             수강신청 팁
@@ -232,7 +319,7 @@ export function RegistrationPage({ user, onBack }) {
                               {getCategoryName(event.category)}
                             </span>
                           </div>
-                          <p className="text-gray-600 mb-2">{event.description}</p>
+                          <p className="text-gray-600 mb-2 whitespace-pre-wrap">{event.description}</p>
                         </div>
                       </div>
 
@@ -365,6 +452,19 @@ export function RegistrationPage({ user, onBack }) {
                     />
                   </div>
 
+                  <div className="flex items-center gap-2 mb-4">
+                    <input
+                      type="checkbox"
+                      id="anonymous"
+                      checked={newTip.isAnonymous}
+                      onChange={(e) => setNewTip({ ...newTip, isAnonymous: e.target.checked })}
+                      className="size-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="anonymous" className="text-sm text-gray-700 select-none">
+                      익명으로 작성
+                    </label>
+                  </div>
+
                   <div className="flex gap-2">
                     <button
                       onClick={handleSubmitTip}
@@ -375,7 +475,7 @@ export function RegistrationPage({ user, onBack }) {
                     <button
                       onClick={() => {
                         setShowWriteTip(false);
-                        setNewTip({ title: '', content: '', category: 'general' });
+                        setNewTip({ title: '', content: '', category: 'general', isAnonymous: false });
                       }}
                       className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                     >
@@ -404,15 +504,14 @@ export function RegistrationPage({ user, onBack }) {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <span
-                              className={`text-xs px-2 py-1 rounded-full border ${
-                                tip.category === 'strategy'
-                                  ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                  : tip.category === 'technical'
+                              className={`text-xs px-2 py-1 rounded-full border ${tip.category === 'strategy'
+                                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                : tip.category === 'technical'
                                   ? 'bg-purple-100 text-purple-700 border-purple-200'
                                   : tip.category === 'course'
-                                  ? 'bg-green-100 text-green-700 border-green-200'
-                                  : 'bg-gray-100 text-gray-700 border-gray-200'
-                              }`}
+                                    ? 'bg-green-100 text-green-700 border-green-200'
+                                    : 'bg-gray-100 text-gray-700 border-gray-200'
+                                }`}
                             >
                               {getCategoryName(tip.category)}
                             </span>
@@ -444,50 +543,50 @@ export function RegistrationPage({ user, onBack }) {
 
                       <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                         <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span className="font-medium">{tip.userName}</span>
-                          <span>{tip.department}</span>
+                          <span className="font-medium">
+                            {tip.isAnonymous ? "익명" : tip.userName}
+                          </span>
+                          {!tip.isAnonymous && <span>{tip.department}</span>}
                           <span>{tip.createdAt}</span>
                         </div>
+
                         <div className="flex items-center gap-4 text-sm">
                           <button
                             onClick={() => handleLikeTip(tip.id)}
-                            className={`flex items-center gap-1 transition-colors ${
-                              tip.likedByUser ? 'text-blue-600' : 'text-gray-500 hover:text-blue-600'
-                            }`}
+                            className={`flex items-center gap-1 transition-colors ${tip.likedByUser ? 'text-blue-600' : 'text-gray-500 hover:text-blue-600'
+                              }`}
                           >
                             <ThumbsUp className={`size-4 ${tip.likedByUser ? 'fill-blue-600' : ''}`} />
-                            <span>{tip.likes}</span>
+                            <span>{tip.likesCount}</span>
                           </button>
                           <button
-                            onClick={() =>
-                              setShowCommentsForTip(showCommentsForTip === tip.id ? null : tip.id)
-                            }
+                            onClick={() => {
+                              if (showCommentsForTip !== tip.id) {
+                                setShowCommentsForTip(tip.id);
+                                fetchComments(tip.id);
+                              } else {
+                                setShowCommentsForTip(null);
+                              }
+                            }}
                             className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition-colors"
                           >
                             <MessageSquare className="size-4" />
-                            <span>{tipComments.filter((c) => c.tipId === tip.id).length}</span>
+                            <span>{tip.commentsCount}</span>
+                          </button>
+                          <button
+                            onClick={() => handleScrapTip(tip.id)}
+                            className={`flex items-center gap-1 transition-colors ${tip.scrapedByUser ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-500'
+                              }`}
+                          >
+                            <Bookmark className={`size-4 ${tip.scrapedByUser ? 'fill-yellow-500' : ''}`} />
+                            {/* <span>스크랩</span> */}
                           </button>
                         </div>
                       </div>
 
                       {/* 댓글 섹션 */}
                       <div className="mt-4">
-                        <button
-                          onClick={() =>
-                            setShowCommentsForTip(showCommentsForTip === tip.id ? null : tip.id)
-                          }
-                          className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          {showCommentsForTip === tip.id ? (
-                            <>
-                              댓글 접기 <ChevronUp className="size-4" />
-                            </>
-                          ) : (
-                            <>
-                              댓글 보기 <ChevronDown className="size-4" />
-                            </>
-                          )}
-                        </button>
+
 
                         {showCommentsForTip === tip.id && (
                           <div className="mt-4 pt-4 border-t border-gray-200">
@@ -544,6 +643,6 @@ export function RegistrationPage({ user, onBack }) {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }

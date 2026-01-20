@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  Bookmark,
 } from 'lucide-react';
 
 export function ReviewsPage({ user, onBack }) {
@@ -29,8 +30,11 @@ export function ReviewsPage({ user, onBack }) {
     teamProject: 'few',
     grading: 'normal',
     attendance: 'direct',
+    attendance: 'direct',
     examCount: 2,
   });
+
+  const [isAnonymousReview, setIsAnonymousReview] = useState(false);
 
   const [expandedReviewId, setExpandedReviewId] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -138,7 +142,7 @@ export function ReviewsPage({ user, onBack }) {
     const payload = {
       lectureId: selectedCourse.id,
       university: uniCode,            // "HANYANG" or "KOREA"
-      userId: String(user?.id || 'anonymous'),
+      userId: user?.email || 'anonymous', // Changed to email
       userName: user?.name || '익명',
       rating: Number(newReview.rating),
       semester: newReview.semester,
@@ -148,6 +152,7 @@ export function ReviewsPage({ user, onBack }) {
       grading: newReview.grading,
       attendance: newReview.attendance,
       examCount: Number(newReview.examCount),
+      isAnonymous: isAnonymousReview,
     };
 
     console.log('강의평 저장 요청:', payload);
@@ -190,6 +195,7 @@ export function ReviewsPage({ user, onBack }) {
 
       setShowWriteReview(false);
       setNewReview({ rating: 5, semester: '', content: '', assignmentAmount: 'medium', teamProject: 'few', grading: 'normal', attendance: 'direct', examCount: 2 });
+      setIsAnonymousReview(false);
     } catch (e) {
       alert(e?.message || '저장 중 오류가 발생했습니다.');
     }
@@ -204,8 +210,8 @@ export function ReviewsPage({ user, onBack }) {
       .catch(() => setSummary({ count: 0, averageRating: 0.0 }));
 
     // ✅ 내 좋아요 목록 불러오기
-    if (user?.id) {
-      fetch(`http://localhost:8080/api/reviews/likes?userId=${encodeURIComponent(user.id)}&lectureId=${encodeURIComponent(selectedCourseId)}`)
+    if (user?.email) {
+      fetch(`http://localhost:8080/api/reviews/likes?userId=${encodeURIComponent(user.email)}&lectureId=${encodeURIComponent(selectedCourseId)}`)
         .then(res => res.json())
         .then(ids => {
           const map = {};
@@ -216,15 +222,17 @@ export function ReviewsPage({ user, onBack }) {
     } else {
       setUserLikes({});
     }
-  }, [selectedCourseId, user?.id]);
+  }, [selectedCourseId, user?.email]);
 
+
+  /* 
+     NOTE: We use user.email as the consistent userId across the application (matching MyPage and RegistrationTips).
+  */
 
   const handleLikeReview = async (reviewId) => {
     try {
-      console.log('Happy debugging: Clicking Like. Current user:', user);
       const numReviewId = Number(reviewId);
-      const targetUserId = String(user?.id || 'anonymous');
-      console.log('Sending userId to server:', targetUserId);
+      const targetUserId = user?.email || 'anonymous'; // Changed from user.id to user.email
 
       const res = await fetch(
         `http://localhost:8080/api/reviews/${numReviewId}/like?userId=${encodeURIComponent(
@@ -260,6 +268,36 @@ export function ReviewsPage({ user, onBack }) {
     }
   };
 
+  const handleScrapReview = async (reviewId) => {
+    try {
+      const numReviewId = Number(reviewId);
+      const targetUserId = user?.email || 'anonymous'; // Changed from user.id to user.email
+
+      const res = await fetch(
+        `http://localhost:8080/api/reviews/${numReviewId}/scrap?userId=${encodeURIComponent(
+          targetUserId
+        )}`,
+        { method: 'POST' }
+      );
+      if (!res.ok) {
+        throw new Error('스크랩 실패');
+      }
+
+      const data = await res.json(); // { scraped: boolean }
+
+      // 리뷰 상태 업데이트
+      setReviews((prev) =>
+        prev.map((r) =>
+          (r?.id === numReviewId || r?.reviewId === numReviewId)
+            ? { ...r, scrapedByUser: data.scraped }
+            : r
+        )
+      );
+    } catch {
+      alert('스크랩 처리 실패');
+    }
+  };
+
   const loadComments = async (reviewId) => {
     try {
       const res = await fetch(`http://localhost:8080/api/reviews/${reviewId}/comments`);
@@ -277,7 +315,7 @@ export function ReviewsPage({ user, onBack }) {
 
     const payload = {
       reviewId: Number(reviewId),
-      userId: String(user?.id || 'anonymous'),
+      userId: user?.email || 'anonymous', // Changed to email
       userName: user?.name || '익명',
       content: text,
     };
@@ -723,34 +761,48 @@ export function ReviewsPage({ user, onBack }) {
                         />
                       </div>
 
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleSubmitReview}
-                          className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          작성 완료
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowWriteReview(false);
-                            setNewReview({
-                              rating: 5,
-                              semester: '',
-                              content: '',
-                              assignmentAmount: 'medium',
-                              teamProject: 'few',
-                              grading: 'normal',
-                              attendance: 'direct',
-                              examCount: 2,
-                            });
-                          }}
-                          className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                        >
-                          취소
-                        </button>
-                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4">
+                      <input
+                        type="checkbox"
+                        id="anonymousReview"
+                        checked={isAnonymousReview}
+                        onChange={(e) => setIsAnonymousReview(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <label htmlFor="anonymousReview" className="text-sm text-gray-700">
+                        익명으로 작성
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSubmitReview}
+                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        작성 완료
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowWriteReview(false);
+                          setNewReview({
+                            rating: 5,
+                            semester: '',
+                            content: '',
+                            assignmentAmount: 'medium',
+                            teamProject: 'few',
+                            grading: 'normal',
+                            attendance: 'direct',
+                            examCount: 2,
+                          });
+                        }}
+                        className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        취소
+                      </button>
                     </div>
                   </div>
                 )}
@@ -769,7 +821,7 @@ export function ReviewsPage({ user, onBack }) {
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-gray-900">{review.userName}</span>
+                                <span className="font-semibold text-gray-900">{review.isAnonymous ? "익명" : review.userName}</span>
                                 <span className="text-xs text-gray-500">{review.semester}</span>
                               </div>
                               {renderStars(review.rating)}
@@ -825,6 +877,16 @@ export function ReviewsPage({ user, onBack }) {
                               <MessageSquare className="size-4" />
                               <span>{review.commentsCount || 0}</span>
                             </button>
+
+                            <button
+                              onClick={() => handleScrapReview(review.id)}
+                              className={`flex items-center gap-1 transition-colors ${review.scrapedByUser
+                                ? 'text-yellow-500'
+                                : 'text-gray-500 hover:text-yellow-500'
+                                }`}
+                            >
+                              <Bookmark className={`size-4 ${review.scrapedByUser ? 'fill-yellow-500' : ''}`} />
+                            </button>
                           </div>
 
                           {/* 댓글 섹션 */}
@@ -847,6 +909,7 @@ export function ReviewsPage({ user, onBack }) {
                                 )}
                               </div>
 
+
                               <div className="flex gap-2">
                                 <input
                                   type="text"
@@ -868,7 +931,8 @@ export function ReviewsPage({ user, onBack }) {
                                 </button>
                               </div>
                             </div>
-                          )}
+                          )
+                          }
                         </div>
                       );
                     })
@@ -877,8 +941,8 @@ export function ReviewsPage({ user, onBack }) {
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 }

@@ -7,4 +7,6 @@ interface ReviewCommentRepository : JpaRepository<ReviewComment, Long> {
     fun findAllByReviewIdOrderByCreatedAtAsc(reviewId: Long): List<ReviewComment>
 
     fun countByReviewId(reviewId: Long): Long
+
+    fun deleteByReviewId(reviewId: Long)
 }

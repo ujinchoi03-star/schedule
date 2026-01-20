@@ -9,6 +9,8 @@ interface ReviewLikeRepository : JpaRepository<ReviewLike, Long> {
 
     fun deleteByReviewIdAndUserId(reviewId: Long, userId: String): Long
 
+    fun deleteByReviewId(reviewId: Long)
+
     @Query("select count(l) from ReviewLike l where l.reviewId = :reviewId")
     fun countByReviewId(reviewId: Long): Long
 

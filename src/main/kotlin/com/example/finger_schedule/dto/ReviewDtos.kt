@@ -13,6 +13,7 @@ data class CreateReviewRequest(
     val grading: String? = null,
     val attendance: String? = null,
     val examCount: Int? = null,
+    val isAnonymous: Boolean = false
 )
 
 data class ReviewSummaryResponse(

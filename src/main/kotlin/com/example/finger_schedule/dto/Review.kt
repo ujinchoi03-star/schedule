@@ -53,4 +53,7 @@ class Review(
 
     @Column(nullable = false, columnDefinition = "BIGINT DEFAULT 0")
     var commentsCount: Long = 0,
+
+    @Column(nullable = true)
+    var isAnonymous: Boolean? = false
 )

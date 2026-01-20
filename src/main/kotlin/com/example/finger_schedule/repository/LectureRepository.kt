@@ -9,6 +9,12 @@ import org.springframework.transaction.annotation.Transactional
 interface LectureRepository : JpaRepository<Lecture, Long> {
     fun findAllByUniversity(university: String): List<Lecture>
 
+    // String ID로 조회 (Lecture.id 컬럼 기준)
+    fun findOneById(id: String): Lecture?
+    
+    // 여러 String ID로 조회
+    fun findByIdIn(ids: List<String>): List<Lecture>
+
     @Modifying
     @Transactional
     @Query("delete from Lecture")
