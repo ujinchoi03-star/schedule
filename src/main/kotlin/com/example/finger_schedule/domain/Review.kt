@@ -60,5 +60,10 @@ class Review(
     var commentsCount: Long = 0,
 
     @Column(nullable = true)
-    var isAnonymous: Boolean? = false
+    var isAnonymous: Boolean? = false,
+
+    // 🚀 [추가] 교수님별 분리를 위한 필드
+    // 🚀 [추가] 교수님별 분리를 위한 필드
+    @Column(nullable = false, columnDefinition = "VARCHAR(255) DEFAULT ''")
+    var professor: String = ""
 )

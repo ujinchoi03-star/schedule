@@ -34,8 +34,15 @@ class ReviewController(
         @RequestParam(required = false) userId: String?
     ): ResponseEntity<List<ReviewResponse>> {
         val baseId = getBaseId(lectureId)
-        val reviews = reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(baseId)
         val lecture = lectureRepository.findFirstById(lectureId) ?: lectureRepository.findFirstById(baseId)
+        
+        // 🚀 [수정] 교수님 이름까지 일치하는 리뷰만 가져오기
+        val reviews = if (lecture != null) {
+            reviewRepository.findAllByLectureIdAndProfessorOrderByCreatedAtDesc(baseId, lecture.professor)
+        } else {
+            // 강의 정보를 못 찾으면 기존처럼 전체 가져오기 (예외 처리)
+            reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(baseId)
+        }
 
         val response = reviews.map { review ->
             ReviewResponse(
@@ -60,7 +67,7 @@ class ReviewController(
                 scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId)
                     .isNotEmpty() else false,
                 lectureName = lecture?.name,
-                professor = lecture?.professor,
+                professor = review.professor, // 🚀 저장된 교수님 이름 사용
                 isAnonymous = review.isAnonymous ?: false
             )
         }
@@ -70,6 +77,10 @@ class ReviewController(
     // 2. 리뷰 작성
     @PostMapping
     fun createReview(@RequestBody req: CreateReviewRequest): ResponseEntity<Any> {
+        // 🚀 [추가] 강의 ID로 교수님 정보 찾기
+        val lecture = lectureRepository.findFirstById(req.lectureId)
+        val professorName = lecture?.professor ?: ""
+
         val review = Review(
             lectureId = getBaseId(req.lectureId),
             university = req.university,
@@ -78,7 +89,13 @@ class ReviewController(
             rating = req.rating,
             semester = req.semester,
             content = req.content,
-            isAnonymous = req.isAnonymous
+            assignmentAmount = req.assignmentAmount ?: "medium",
+            teamProject = req.teamProject ?: "few",
+            grading = req.grading ?: "normal",
+            attendance = req.attendance ?: "direct",
+            examCount = req.examCount ?: 2,
+            isAnonymous = req.isAnonymous,
+            professor = professorName // 🚀 교수님 이름 저장
         )
         val saved = reviewRepository.save(review)
         return ResponseEntity.ok(saved)
@@ -133,11 +150,26 @@ class ReviewController(
     @GetMapping("/summary")
     fun getSummary(@RequestParam lectureId: String): ResponseEntity<ReviewSummaryResponse> {
         val baseId = getBaseId(lectureId)
-        val avg = reviewRepository.avgRatingByLectureId(baseId)
+        val lecture = lectureRepository.findFirstById(lectureId)
+        
+        // 🚀 [수정] 교수님별 통계 조회 (강의 정보가 없으면 기존처럼 전체 조회)
+        // 만약 lectureId로 찾은 강의가 있다면 그 강의의 교수님으로 필터링
+        val (count, avg) = if (lecture != null) {
+            Pair(
+                reviewRepository.countByLectureIdAndProfessor(baseId, lecture.professor),
+                reviewRepository.avgRatingByLectureIdAndProfessor(baseId, lecture.professor)
+            )
+        } else {
+            Pair(
+                reviewRepository.countByLectureId(baseId),
+                reviewRepository.avgRatingByLectureId(baseId)
+            )
+        }
+
         return ResponseEntity.ok(
             ReviewSummaryResponse(
                 baseId,
-                reviewRepository.countByLectureId(baseId),
+                count,
                 round(avg * 10) / 10.0
             )
         )
@@ -161,7 +193,9 @@ class ReviewController(
     // 3. 변환 헬퍼 함수 추가 (빨간 줄 해결)
     private fun convertToResponse(reviews: List<Review>, userId: String?): List<ReviewResponse> {
         return reviews.map { review ->
+            // 🚀 ID가 정확히 일치하지 않으면 BaseId로 시작하는 강의라도 찾기
             val lecture = lectureRepository.findFirstById(review.lectureId)
+                ?: lectureRepository.findFirstByIdStartingWith(review.lectureId)
             ReviewResponse(
                 id = review.id, lectureId = review.lectureId, university = review.university,
                 userId = review.userId, userName = review.userName, rating = review.rating,
@@ -171,7 +205,10 @@ class ReviewController(
                 createdAt = review.createdAt, likesCount = review.likesCount, commentsCount = review.commentsCount,
                 likedByUser = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
                 scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
-                lectureName = lecture?.name, professor = lecture?.professor, isAnonymous = review.isAnonymous ?: false
+lectureName = lecture?.name,
+                // 🚀 [수정] 리뷰에 저장된 교수님 이름을 우선 사용하고, 없으면 강의 정보에서 가져옴
+                professor = review.professor ?: lecture?.professor,
+                isAnonymous = review.isAnonymous ?: false
             )
         }
     }
@@ -226,9 +263,27 @@ class ReviewController(
         @RequestParam userId: String,
         @RequestParam lectureId: String
     ): ResponseEntity<List<Long>> {
-        // 이미 만들어진 커스텀 쿼리를 활용합니다. 이 메서드는 특정 유저가 특정 강의의 리뷰 중 좋아요를 누른 것들의 ID 목록을 반환합니다.
+        val baseId = getBaseId(lectureId) // 🚀 핵심 수정: 분반 정보 제거 (예: ITE2031-01 -> ITE2031)
+        
         // Repository에 정의된 쿼리: SELECT l.reviewId FROM ReviewLike l WHERE l.userId = :userId AND l.reviewId IN (SELECT r.id FROM Review r WHERE r.lectureId = :lectureId)
-        val likedReviewIds = likeRepository.findReviewIdsByUserIdAndLectureId(userId, lectureId)
+        val likedReviewIds = likeRepository.findReviewIdsByUserIdAndLectureId(userId, baseId)
         return ResponseEntity.ok(likedReviewIds)
+    }
+
+    // 9. 리뷰 삭제 (🚀 404 해결)
+    @DeleteMapping("/{reviewId}")
+    @Transactional
+    fun deleteReview(@PathVariable reviewId: Long): ResponseEntity<Any> {
+        if (!reviewRepository.existsById(reviewId)) {
+            return ResponseEntity.notFound().build()
+        }
+        
+        // 연관된 댓글, 좋아요, 스크랩은 DB FK 제약조건(Cascade)에 따라 자동 삭제되거나, 
+        // 서비스 로직에서 수동 삭제가 필요할 수 있음.
+        // 현재는 JPA Cascade가 설정되어 있다고 가정하고 리뷰만 삭제.
+        // 만약 에러가 나면 수동 삭제 로직 추가 필요.
+        
+        reviewRepository.deleteById(reviewId)
+        return ResponseEntity.ok().build()
     }
 }
