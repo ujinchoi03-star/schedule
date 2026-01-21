@@ -104,6 +104,13 @@ class ReviewController(
         return ResponseEntity.ok(saved)
     }
 
+    // 3.1 댓글 조회 (🚀 405 해결)
+    @GetMapping("/{reviewId}/comments")
+    fun getComments(@PathVariable reviewId: Long): ResponseEntity<List<ReviewComment>> {
+        val comments = commentRepository.findAllByReviewIdOrderByCreatedAtAsc(reviewId)
+        return ResponseEntity.ok(comments)
+    }
+
     // 4. 좋아요 토글
     @PostMapping("/{reviewId}/like")
     @Transactional
@@ -201,5 +208,27 @@ class ReviewController(
             )
         )
         // 🚀 모든 함수가 클래스 닫는 중괄호 안에 있어야 합니다.
+    }
+
+    // 7. 스크랩한 강의평 목록 조회 (🚀 404 해결)
+    @GetMapping("/scraped")
+    fun getScrapedReviews(@RequestParam userId: String): ResponseEntity<List<ReviewResponse>> {
+        val scraps = scrapRepository.findByUserId(userId)
+        val reviewIds = scraps.map { it.reviewId }
+        val reviews = reviewRepository.findAllById(reviewIds)
+
+        return ResponseEntity.ok(convertToResponse(reviews, userId))
+    }
+
+    // 8. 좋아요한 리뷰 ID 목록 조회 (🚀 404 해결)
+    @GetMapping("/likes")
+    fun getUserLikes(
+        @RequestParam userId: String,
+        @RequestParam lectureId: String
+    ): ResponseEntity<List<Long>> {
+        // 이미 만들어진 커스텀 쿼리를 활용합니다. 이 메서드는 특정 유저가 특정 강의의 리뷰 중 좋아요를 누른 것들의 ID 목록을 반환합니다.
+        // Repository에 정의된 쿼리: SELECT l.reviewId FROM ReviewLike l WHERE l.userId = :userId AND l.reviewId IN (SELECT r.id FROM Review r WHERE r.lectureId = :lectureId)
+        val likedReviewIds = likeRepository.findReviewIdsByUserIdAndLectureId(userId, lectureId)
+        return ResponseEntity.ok(likedReviewIds)
     }
 }

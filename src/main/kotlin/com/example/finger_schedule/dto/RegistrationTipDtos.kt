@@ -27,7 +27,7 @@ data class CreateRegistrationTipRequest(
     val userId: String,
     val userName: String,
     val department: String,
-    val isAnonymous: Boolean = false
+    val isAnonymous: Boolean? = false
 )
 
 data class CreateTipCommentRequest(
