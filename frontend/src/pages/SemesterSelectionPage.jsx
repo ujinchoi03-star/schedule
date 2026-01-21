@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Calendar, BookOpen, CheckCircle2,
   Plus, X, Star, Settings2, Sparkles, Search, Clock,
-  Ban, User, Hash
+  Ban, User, Hash,RotateCcw
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -136,6 +136,8 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed._userId && parsed._userId !== user?.id) {
+          return defaultValue;}
         return parsed[key] !== undefined ? parsed[key] : defaultValue;
       }
     } catch (e) { console.error("설정 불러오기 실패", e); }
@@ -166,22 +168,6 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
 
   const recommendedKeywords = UNIV_KEYWORDS[user?.university] || [];
 
-  useEffect(() => {
-    const settings = {
-      year, semester, minCredit, maxCredit,
-      minMajorCredit, minMajorCount, minGeneralCount,
-      mustHaveMajors, mustHaveGenerals, avoidNameKeywords,
-      wantedDayOffs, blockedTimes, minRating,
-      avoidKeywords, preferredKeywords
-    };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }, [
-    year, semester, minCredit, maxCredit,
-    minMajorCredit, minMajorCount, minGeneralCount,
-    mustHaveMajors, mustHaveGenerals, avoidNameKeywords,
-    wantedDayOffs, blockedTimes, minRating,
-    avoidKeywords, preferredKeywords
-  ]);
 
   const handleKeywordToggle = (keyword, type) => {
     if (type === 'avoid') {
@@ -209,9 +195,58 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
     setTempAvoidInput("");
   };
 
+  // 🚀 3. '뒤로가기'를 눌러서 나갈 때는 저장을 비워야 함 (선택 사항)
+  // onBack 함수가 호출될 때 sessionStorage를 비우도록 처리할 수도 있습니다.
+  const handleBack = () => {
+    sessionStorage.removeItem(STORAGE_KEY); // 뒤로가기로 아예 나갈 땐 초기화
+    onBack();
+  };
+
+  // 🚀 [추가] 모든 조건을 초기값으로 리셋하는 함수
+  const handleReset = () => {
+    if (!window.confirm("모든 설정 조건을 초기값으로 되돌리시겠습니까?")) return;
+
+    // 1. 저장소 비우기
+    sessionStorage.removeItem(STORAGE_KEY);
+
+    // 2. 모든 상태 초기값으로 되돌리기
+    setYear(2026);
+    setSemester(1);
+    setMinCredit(15);
+    setMaxCredit(21);
+    setMinMajorCredit(9);
+    setMinMajorCount(3);
+    setMinGeneralCount(3);
+    setMustHaveMajors([]);
+    setMustHaveGenerals([]);
+    setAvoidNameKeywords([]);
+    setTempAvoidInput("");
+    setWantedDayOffs([]);
+    setBlockedTimes([]);
+    setNewBlockDay(0);
+    setNewBlockStart("09:00");
+    setNewBlockEnd("12:00");
+    setMinRating(0.0);
+    setAvoidKeywords([]);
+    setPreferredKeywords([]);
+  };
+
   const handleGenerate = async () => {
     try {
       setIsSubmitting(true);
+
+      // 🚀 4. [핵심 수정] 생성 버튼을 누르는 이 시점에만 현재 설정을 저장합니다!
+      // 그래야 결과 화면에서 '뒤로가기'를 했을 때만 이 값을 불러올 수 있습니다.
+      const currentSettings = {
+        _userId: user?.id, // 유저 ID를 같이 저장해서 다른 계정 접근 방지
+        year, semester, minCredit, maxCredit,
+        minMajorCredit, minMajorCount, minGeneralCount,
+        mustHaveMajors, mustHaveGenerals, avoidNameKeywords,
+        wantedDayOffs, blockedTimes, minRating,
+        avoidKeywords, preferredKeywords
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(currentSettings));
+
       const requestData = {
         university: user.university || "KOREA",
         year: Number(year), semester: Number(semester),
@@ -278,9 +313,17 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
   };
   return (
       <div className="max-w-3xl mx-auto px-4 py-8 pb-32">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 relative">
           <h2 className="text-3xl font-bold text-gray-900 mb-2">시간표 조건 설정</h2>
           <p className="text-gray-500 font-medium">나만의 취향을 반영한 완벽한 조합을 만들어보세요</p>
+
+          <button
+              onClick={handleReset}
+              className="absolute right-0 top-1 flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-xs font-bold text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all group"
+          >
+            <RotateCcw className="size-4 text-gray-400 group-hover:text-red-500 transition-colors" />
+            조건 초기화
+          </button>
         </div>
 
         <div className="space-y-6">
@@ -448,7 +491,7 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
 
         <div className="fixed bottom-0 left-0 right-0 bg-white p-4 z-20 shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)]">
           <div className="max-w-3xl mx-auto flex gap-3">
-            <button onClick={onBack} className="px-8 py-3 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-colors">이전</button>
+            <button onClick={handleBack} className="px-8 py-3 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-colors">이전</button>
             <button onClick={handleGenerate} disabled={isSubmitting} className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-bold text-lg flex justify-center items-center gap-2 hover:opacity-90 disabled:opacity-70 transition-all">
               {isSubmitting ? "AI 시간표 조합 생성 중..." : <>AI 시간표 생성하기 <Sparkles className="size-5 fill-white"/></>}
             </button>
