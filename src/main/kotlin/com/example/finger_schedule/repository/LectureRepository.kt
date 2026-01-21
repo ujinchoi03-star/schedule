@@ -1,10 +1,24 @@
 package com.example.finger_schedule.repository
 
-import com.example.finger_schedule.dto.Lecture
+import com.example.finger_schedule.domain.Lecture
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.transaction.annotation.Transactional
 
-// <다룰 객체, ID의 타입>
-interface LectureRepository : JpaRepository<Lecture, String> {
+interface LectureRepository : JpaRepository<Lecture, Long> {
+
+    // 1. 학교별 모든 강의 찾기
     fun findAllByUniversity(university: String): List<Lecture>
-    // 아무것도 안 적어도 findAll(), save() 같은 기능을 공짜로 줍니다!
+
+    // 2. ❌ 기존의 findByIdIn(빨간 줄)은 삭제하세요.
+    // 3. ✅ 아래 함수가 학수번호(String) 리스트로 강의들을 찾는 올바른 함수입니다.
+    fun findAllByIdIn(ids: List<String>): List<Lecture>
+
+    // 4. 단건 조회용
+// 4. 단건 조회용
+    fun findFirstById(id: String): Lecture?
+
+    // 5. prefix 조회용 (Base Id로 찾기 위함) -> 🚀 이 함수가 필요해서 final을 선택합니다.
+    fun findFirstByIdStartingWith(id: String): Lecture?
 }

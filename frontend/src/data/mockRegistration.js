@@ -1,0 +1,230 @@
+// types import 제거 (JS에서는 필요 없음)
+// import { RegistrationSchedule, RegistrationTip, TipComment } from '../types';
+
+export const mockSchedules = [
+  {
+    id: 'SCH003',
+    university: 'HANYANG',
+    universityName: '한양대학교',
+    semester: '2026-1학기',
+    events: [
+      {
+        id: 'E012',
+        title: '모의 수강신청',
+        description: '2학년 : 2. 2. (월) 11:00 - 15:00\n3학년 : 2. 2. (월) 15:00 - 24:00\n4,5학년 : 2. 3. (화) 11:00 - 15:00\n다전공 : 2. 4. (수) 11:00 – 14:00\n전체학년 : 2. 4. (수) 16:00 – 24:00',
+        startDate: '2026-02-02',
+        endDate: '2026-02-04', // 예시 날짜 (수정 필요)
+        category: '모의수강신청',
+        target: '학년별',
+      },
+      {
+        id: 'E013',
+        title: '개강 전 수강신청',
+        description: '4,5학년 : 2026. 2. 9.(월) 11:00~24:00\n3학년 : 2026. 2. 10.(화) 11:00~24:00\n2학년 : 2026. 2. 11.(수) 11:00~24:00\n다전공 : 2026. 2. 12.(목) 11:00~14:00\n전체학년: 2026. 2. 12.(목) 16:00~24:00, 2026. 2. 13.(금) 11:00~24:00\n신·편입생 : 2026. 2. 27.(금) 11:00~24:00, 2026. 3. 3.(화) 11:00~24:00',
+        startDate: '2026-02-09', // 예시 날짜
+        endDate: '2026-03-03',
+        category: 'registration',
+        target: '학년별',
+      },
+      {
+        id: 'E014',
+        title: '개강 후 정정',
+        description: '증원신청 : 2026. 3. 5.(목) 09:00 ~ 3. 6.(금) 13:00\n교강사 승인 : 2026. 3. 5.(목) 09:00 ~ 3. 6.(금) 17:00\n전체학년 : 2026. 3. 9.(월) 17:00 ~ 24:00, 2026. 3. 10.(화) 11:00 ~ 24:00',
+        startDate: '2026-03-05', // 예시 날짜
+        endDate: '2026-03-10',
+        category: '정정기간',
+        target: '전체',
+      },
+      {
+        id: 'E015',
+        title: '수강포기',
+        description: '수강 포기 후 잔여학점이 수강신청 최소학점 이상이어야만 하며, 최대 2과목까지 수강 포기 가능',
+        startDate: '2026-03-23', // 예시 날짜
+        endDate: '2026-03-24',
+        time: '09:00 ~ 24:00',
+        category: '수강포기',
+        target: '전체',
+      },
+    ],
+  },
+  {
+    id: 'SCH004',
+    university: 'KOREA',
+    universityName: '고려대학교',
+    semester: '2026-1학기',
+    events: [
+      {
+        id: 'E016',
+        title: '수강희망과목 등록',
+        description: '희망과목 등록은 본인의 최대 수강가능학점 이내에서 등록 가능합니다.',
+        startDate: '2026-02-03', // 예시 날짜 (수정 필요)
+        endDate: '2026-02-05',
+        category: '희망과목등록',
+        target: '전체',
+      },
+      {
+        id: 'E017',
+        title: '수강신청',
+        description: '4학년 : 2. 10.(화) 10:00 - 2. 11.(수) 09:00\n3학년 : 2. 11.(수) 10:00 - 2. 12.(목) 09:00\n2학년 : 2. 12.(목) 10:00 - 2. 13.(금) 09:00\n1학년 : 2. 13.(금) 10:00 - 2. 14.(토) 09:00',
+        startDate: '2026-02-10', // 예시 날짜
+        endDate: '2026-02-13',
+        category: 'registration',
+        target: '학년별',
+      },
+      {
+        id: 'E018',
+        title: '수강신청 정정',
+        description: '4학년 : 3. 4.(수) 18:30 - 3. 5.(목) 12:00\n3학년 : 3. 4.(수) 19:30 - 3. 5.(목) 12:00\n2학년 : 3. 4.(수) 20:30 - 3. 5.(목) 12:00\n1학년 : 3. 4.(수) 21:30 - 3. 5.(목) 12:00\n전체 : 3. 5.(목) 18:30 - 3. 6.(금) 12:00',
+        startDate: '2026-03-04', // 예시 날짜
+        endDate: '2026-03-06',
+        category: '정정기간',
+        target: '학년별',
+      },
+      {
+        id: 'E019',
+        title: '수강포기 일정',
+        description: '수강포기제한 과목 제외 최대 9학점 한도',
+        startDate: '2026-03-24', // 예시 날짜
+        endDate: '2026-03-26',
+        category: '수강포기',
+        target: '수강포기 신청자',
+      },
+    ],
+  },
+];
+
+export const mockTips = [
+  {
+    id: 'T001',
+    userId: 'U001',
+    userName: '김철수',
+    university: '서울대학교',
+    department: '컴퓨터공학과',
+    title: '수강신청 매크로 없이 성공하는 법',
+    content:
+      '매크로 없이도 수강신청에 성공할 수 있습니다. 핵심은 시간표를 미리 여러 개 짜두고, 우선순위를 정하는 것입니다. 신청 시작 5분 전부터 로그인해서 대기하고, 정각이 되면 바로 신청 버튼을 누르세요. 만약 첫 번째 강의가 실패하면 바로 다음 우선순위 강의로 넘어가는 게 중요합니다.',
+    category: 'strategy',
+    createdAt: '2026-01-10',
+    likes: 48,
+    comments: 12,
+  },
+  {
+    id: 'T002',
+    userId: 'U002',
+    userName: '이영희',
+    university: '서울대학교',
+    department: '경영학과',
+    title: '인기 교양 과목 신청 팁',
+    content:
+      '교양 과목은 경쟁이 치열하기 때문에 2-3개 정도 후보를 준비해두세요. 특히 영화, 음악 관련 교양은 순식간에 마감되니 최우선으로 신청하는 것을 추천합니다. 그리고 수강정정 기간에도 자리가 생기는 경우가 많으니 포기하지 마세요!',
+    category: 'course',
+    createdAt: '2026-01-12',
+    likes: 35,
+    comments: 8,
+  },
+  {
+    id: 'T003',
+    userId: 'U003',
+    userName: '박지민',
+    university: '연세대학교',
+    department: '경제학과',
+    title: '크롬 확장 프로그램 활용하기',
+    content:
+      '수강신청 시스템이 느려질 때를 대비해서 크롬 확장 프로그램을 활용하면 좋습니다. 자동 새로고침 기능이 있는 확장 프로그램을 설치하면 대기 화면에서 자동으로 새로고침되어 편리합니다. 단, 학교 규정을 위반하지 않는 선에서 사용하세요.',
+    category: 'technical',
+    createdAt: '2026-01-14',
+    likes: 62,
+    comments: 15,
+  },
+  {
+    id: 'T004',
+    userId: 'U004',
+    userName: '최민호',
+    university: '서울대학교',
+    department: '전기정보공학부',
+    title: '전공 필수 과목은 여유롭게',
+    content:
+      '전공 필수 과목은 보통 경쟁률이 낮고 학년이 올라갈수록 들을 기회가 많습니다. 저학년 때는 교양이나 전공 선택 과목 위주로 먼저 신청하고, 전공 필수는 나중에 신청해도 괜찮습니다.',
+    category: 'strategy',
+    createdAt: '2026-01-11',
+    likes: 28,
+    comments: 6,
+  },
+  {
+    id: 'T005',
+    userId: 'U005',
+    userName: '정수연',
+    university: '연세대학교',
+    department: '심리학과',
+    title: '수강정정 기간 활용법',
+    content:
+      '수강정정 기간에는 생각보다 많은 자리가 생깁니다. 특히 첫날 오전에 많이 빠지니까 원하는 강의를 놓쳤다면 수강정정 첫날 아침에 꼭 확인해보세요. 저는 이 방법으로 인기 강의를 여러 번 신청했어요!',
+    category: 'strategy',
+    createdAt: '2026-01-13',
+    likes: 41,
+    comments: 9,
+  },
+  {
+    id: 'T006',
+    userId: 'U006',
+    userName: '강서준',
+    university: '서울대학교',
+    department: '화학생물공학부',
+    title: '와이파이보다 유선 인터넷 사용하기',
+    content:
+      '수강신청할 때는 가능하면 유선 인터넷을 사용하세요. 와이파이는 불안정할 수 있어서 중요한 순간에 끊길 수 있습니다. 도서관이나 PC방을 이용하는 것도 좋은 방법입니다.',
+    category: 'technical',
+    createdAt: '2026-01-09',
+    likes: 53,
+    comments: 11,
+  },
+  {
+    id: 'T007',
+    userId: 'U007',
+    userName: '윤하은',
+    university: '연세대학교',
+    department: '사회학과',
+    title: '강의평 미리 확인하기',
+    content:
+      '수강신청 전에 강의평을 꼭 확인하세요. 에브리타임이나 학교 강의평가 시스템에서 교수님의 강의 스타일, 과제량, 시험 난이도 등을 미리 파악할 수 있습니다. 시간표만 보고 신청했다가 후회하는 경우가 많아요.',
+    category: 'general',
+    createdAt: '2026-01-08',
+    likes: 67,
+    comments: 14,
+  },
+];
+
+export const mockComments = [
+  {
+    id: 'C001',
+    tipId: 'T001',
+    userId: 'U002',
+    userName: '이영희',
+    content: '정말 유용한 팁이네요! 저도 이런 방법으로 성공했어요.',
+    createdAt: '2026-01-13',
+  },
+  {
+    id: 'C002',
+    tipId: 'T003',
+    userId: 'U004',
+    userName: '최민호',
+    content: '크롬 확장 프로그램 사용법이 궁금합니다. 추천 프로그램이 있으신가요?',
+    createdAt: '2026-01-15',
+  },
+  {
+    id: 'C003',
+    tipId: 'T005',
+    userId: 'U006',
+    userName: '강서준',
+    content: '수강정정 기간에 신청한 강의가 성공적으로 들어왔어요! 감사합니다.',
+    createdAt: '2026-01-16',
+  },
+  {
+    id: 'C004',
+    tipId: 'T007',
+    userId: 'U001',
+    userName: '김철수',
+    content: '강의평 확인하는 것이 정말 중요합니다. 좋은 팁이네요!',
+    createdAt: '2026-01-17',
+  },
+];

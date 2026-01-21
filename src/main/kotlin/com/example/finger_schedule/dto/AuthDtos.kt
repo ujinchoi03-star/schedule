@@ -4,7 +4,9 @@ package com.example.finger_schedule.dto
 data class SignupRequest(
     val email: String,
     val password: String,
-    val nickname: String
+    val nickname: String,
+
+    val university: String? = null
 )
 
 data class LoginRequest(
@@ -14,5 +16,16 @@ data class LoginRequest(
 
 data class LoginResponse(
     val token: String,
-    val nickname: String
+    val nickname: String,
+    val email: String,
+    val university: String? = null,
+    val department: String? = null,
+    val grade: Int? = null,
+    val id: Long
+)
+
+data class OnboardingRequest(
+    val university: String,
+    val department: String,
+    val grade: Int
 )
