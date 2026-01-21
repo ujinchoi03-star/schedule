@@ -16,21 +16,21 @@ class LectureDataLoader(
 ) : ApplicationRunner {
 
 
-    // 🚀 [수정 1] Transactional 어노테이션 제거 (메모리 부족 방지)
-    // 대량 데이터 입력 시 함수 전체에 트랜잭션을 걸면 메모리가 터질 수 있습니다.
     override fun run(args: ApplicationArguments) {
 
-        // 🚀 [수정 2] 핵심 방어 로직: 데이터가 1개라도 있으면 로딩 건너뜀
+        // 🚨 [임시 주석 처리] 기존 데이터가 있어도 강제로 덮어쓰기 위해 주석 처리하세요!
+        /*
         val count = lectureRepository.count()
         if (count > 0) {
             println("✅ DB에 이미 데이터가 $count 건 존재합니다. 초기 로딩을 건너뜁니다.")
             return
         }
+        */
 
-        println("🚀 [초기 로딩] DB가 비어있습니다. 강의 데이터 파싱 시작...")
+        println("🚀 [재로딩] 기존 데이터를 삭제하고 새로 파싱합니다...")
 
         try {
-            // 기존의 deleteAllInBatch()는 삭제합니다. (위에서 체크하므로 불필요)
+            lectureRepository.deleteAll()
             loadUniversityLectures("HANYANG", "real_lectures_hanyang_full.json")
             loadUniversityLectures("KOREA", "real_lectures_korea_2026_1.json")
 
