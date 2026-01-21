@@ -107,18 +107,34 @@ class TimeTableService(
 
     // 🚀 사용자의 저장된 시간표 조회 (수정: 클래스 내부로 이동)
     fun getSavedTimetables(userId: String): List<SavedTimetableResponse> {
-        val user = userRepository.findByEmail(userId)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        val user = userRepository.findById(userId).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "유저를 찾을 수 없습니다: $userId")
 
         return user.savedTimetables.map { saved ->
             SavedTimetableResponse(
                 id = saved.id!!,
                 name = saved.name,
-                lectures = saved.lectures.groupBy { it.id }.map { (id, list) ->
-                    val first = list.first()
+                lectures = saved.lectures.map { lecture ->
                     LectureSearchResponse(
-                        id = id, name = first.name, professor = first.professor, credit = first.credit, rating = first.rating, category = first.category, details = first.details, department = first.department, timeRoom = first.timeRoom, university = first.university,
-                        timeSlots = list.map { SearchTimeSlot(it.day, it.startTime, it.endTime) }
+                        id = lecture.id!!,
+                        name = lecture.name,
+                        professor = lecture.professor,
+                        credit = lecture.credit,
+                        rating = lecture.rating,
+                        category = lecture.category,
+                        details = lecture.details,
+                        department = lecture.department,
+                        timeRoom = lecture.timeRoom,
+                        university = lecture.university,
+
+                        // 🚀 [수정된 부분] lecture의 필드를 바로 사용하여 리스트로 만듭니다.
+                        timeSlots = listOf(
+                            SearchTimeSlot(
+                                day = lecture.day,
+                                startTime = lecture.startTime,
+                                endTime = lecture.endTime
+                            )
+                        )
                     )
                 }
             )

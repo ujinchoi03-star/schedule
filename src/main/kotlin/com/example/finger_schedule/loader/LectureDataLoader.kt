@@ -15,21 +15,30 @@ class LectureDataLoader(
     private val objectMapper: ObjectMapper
 ) : ApplicationRunner {
 
-    @Transactional
-    override fun run(args: ApplicationArguments) {
-        println("🚀 [최종 로딩] 멀티 요일 파싱 및 해시태그 반영 시작")
 
-        // 🚀 새 파싱 규칙 적용을 위해 기존 데이터를 반드시 비워야 합니다.
-        try {
-            lectureRepository.deleteAllInBatch()
-        } catch (e: Exception) {
-            println("⚠️ DB 초기화 실패. 수동 SQL 삭제가 필요할 수 있습니다.")
+    // 🚀 [수정 1] Transactional 어노테이션 제거 (메모리 부족 방지)
+    // 대량 데이터 입력 시 함수 전체에 트랜잭션을 걸면 메모리가 터질 수 있습니다.
+    override fun run(args: ApplicationArguments) {
+
+        // 🚀 [수정 2] 핵심 방어 로직: 데이터가 1개라도 있으면 로딩 건너뜀
+        val count = lectureRepository.count()
+        if (count > 0) {
+            println("✅ DB에 이미 데이터가 $count 건 존재합니다. 초기 로딩을 건너뜁니다.")
+            return
         }
 
-        loadUniversityLectures("HANYANG", "real_lectures_hanyang_full.json")
-        loadUniversityLectures("KOREA", "real_lectures_korea_2026_1.json")
+        println("🚀 [초기 로딩] DB가 비어있습니다. 강의 데이터 파싱 시작...")
 
-        println("✅ 파싱 완료! 전체 행(슬롯) 수: ${lectureRepository.count()}개")
+        try {
+            // 기존의 deleteAllInBatch()는 삭제합니다. (위에서 체크하므로 불필요)
+            loadUniversityLectures("HANYANG", "real_lectures_hanyang_full.json")
+            loadUniversityLectures("KOREA", "real_lectures_korea_2026_1.json")
+
+            println("✅ 모든 데이터 로딩 완료! 총 ${lectureRepository.count()}개")
+        } catch (e: Exception) {
+            println("⚠️ 데이터 로딩 중 오류 발생 (하지만 서버는 계속 켜집니다): ${e.message}")
+            // e.printStackTrace() // 필요 시 주석 해제하여 상세 에러 확인
+        }
     }
 
     // 🕒 멀티 요일을 지원하는 파싱 함수
@@ -125,6 +134,11 @@ class LectureDataLoader(
                 )
             }
         }
-        lectureRepository.saveAll(lectures)
+        try {
+            lectureRepository.saveAll(lectures)
+            println("   -> $universityCode 데이터 ${lectures.size}개 저장 성공")
+        } catch (e: Exception) {
+            println("   -> $universityCode 저장 중 일부 오류 발생: ${e.message}")
+        }
     }
 }

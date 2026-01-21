@@ -11,6 +11,7 @@ class TimeTableController(
     private val timeTableService: TimeTableService
 ) {
 
+
     @PostMapping("/generate")
     fun generateTimeTable(@RequestBody request: TimeTableRequest): List<List<Lecture>> {
         return timeTableService.generate(request)
