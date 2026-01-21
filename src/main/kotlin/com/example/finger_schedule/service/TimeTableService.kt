@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
 import java.util.regex.Pattern
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class TimeTableService(
@@ -77,13 +78,18 @@ class TimeTableService(
         }
     }
 
-    // 🚀 시간표 저장 (수정: 클래스 내부로 이동)
+    // TimeTableService.kt 수정
+    @Transactional
     fun saveTimetable(request: SaveTimetableRequest): Long {
-        val user = userRepository.findByEmail(request.userId)
-            ?: throw IllegalArgumentException("해당 이메일(ID)을 가진 유저를 찾을 수 없습니다: ${request.userId}")
+        // 🚀 [수정] findByEmail 대신 findById를 사용하고, String인 userId를 Long으로 변환합니다.
+        val user = userRepository.findById(request.userId).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "유저 ID를 찾을 수 없음: ${request.userId}")
 
-// [수정 후] 학수번호(String)로 찾기
-        val lectures = lectureRepository.findByIdIn(request.lectureIds)
+        val lectures = lectureRepository.findAllByIdIn(request.lectureIds).toMutableList()
+
+        if (lectures.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "강의 정보가 없습니다.")
+        }
 
         val newTimetable = SavedTimetable(
             name = request.name,
@@ -91,8 +97,7 @@ class TimeTableService(
             lectures = lectures
         )
 
-        val saved = savedTimetableRepository.save(newTimetable)
-        return saved.id!!
+        return savedTimetableRepository.save(newTimetable).id!!
     }
 
     // 🚀 저장된 시간표 삭제 (수정: 클래스 내부로 이동)

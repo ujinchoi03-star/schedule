@@ -38,3 +38,6 @@ class TimeTableController(
         return timeTableService.getSavedTimetables(userId)
     }
 }
+// TimeTableController.kt 안에 추가
+@GetMapping("/test")
+fun test(): String = "OK"

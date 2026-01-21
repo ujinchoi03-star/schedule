@@ -592,27 +592,42 @@ export function ReviewsPage({ user, onBack }) {
                         {renderStars(newReview.rating, true, (rating) => setNewReview({ ...newReview, rating }))}
                       </div>
 
-                      {/* 학기 */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">수강 학기</label>
-                        <select
-                          value={newReview.semester}
-                          onChange={(e) => setNewReview({ ...newReview, semester: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">학기 선택</option>
-                          <option value="2026-1학기">2026-1학기</option>
-                          <option value="2025-2학기">2025-2학기</option>
-                          <option value="2025-1학기">2025-1학기</option>
-                          <option value="2024-2학기">2024-2학기</option>
-                        </select>
+                      {/* 학기 & 시험 횟수 */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">수강 학기</label>
+                          <select
+                            value={newReview.semester}
+                            onChange={(e) => setNewReview({ ...newReview, semester: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">학기 선택</option>
+                            <option value="2026-1학기">2026-1학기</option>
+                            <option value="2025-2학기">2025-2학기</option>
+                            <option value="2025-1학기">2025-1학기</option>
+                            <option value="2024-2학기">2024-2학기</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">시험 횟수</label>
+                          <select
+                            value={newReview.examCount}
+                            onChange={(e) => setNewReview({ ...newReview, examCount: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="0">없음</option>
+                            <option value="1">1회</option>
+                            <option value="2">2회</option>
+                            <option value="3">3회 이상</option>
+                          </select>
+                        </div>
                       </div>
 
                       {/* 상세 항목들 (그리드) */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">과제량</label>
-                          <select value={newReview.assignmentAmount} onChange={(e) => setNewReview({ ...newReview, assignmentAmount: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                          <select value={newReview.assignmentAmount} onChange={(e) => setNewReview({ ...newReview, assignmentAmount: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <option value="low">적음</option>
                             <option value="medium">보통</option>
                             <option value="high">많음</option>
@@ -620,7 +635,7 @@ export function ReviewsPage({ user, onBack }) {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">조모임</label>
-                          <select value={newReview.teamProject} onChange={(e) => setNewReview({ ...newReview, teamProject: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                          <select value={newReview.teamProject} onChange={(e) => setNewReview({ ...newReview, teamProject: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <option value="none">없음</option>
                             <option value="few">보통</option>
                             <option value="many">많음</option>
@@ -628,7 +643,7 @@ export function ReviewsPage({ user, onBack }) {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">성적</label>
-                          <select value={newReview.grading} onChange={(e) => setNewReview({ ...newReview, grading: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                          <select value={newReview.grading} onChange={(e) => setNewReview({ ...newReview, grading: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <option value="generous">너그러움</option>
                             <option value="normal">보통</option>
                             <option value="strict">깐깐함</option>
@@ -636,13 +651,14 @@ export function ReviewsPage({ user, onBack }) {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">출석</label>
-                          <select value={newReview.attendance} onChange={(e) => setNewReview({ ...newReview, attendance: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                          <select value={newReview.attendance} onChange={(e) => setNewReview({ ...newReview, attendance: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <option value="none">미체크</option>
                             <option value="direct">직접호명</option>
                             <option value="electronic">전자출결</option>
                             <option value="assignment">과제</option>
                           </select>
                         </div>
+
                       </div>
 
                       {/* 텍스트 내용 */}
