@@ -136,48 +136,35 @@ class ReviewController(
         )
     }
 
-    // 🚀 [추가 1] 왼쪽 목록 0점 방지용 (전체 요약 API)
+    // 1. 전체 요약 API: 레포지토리에 정의하신 summaryByUniversity를 호출하도록 수정
     @GetMapping("/summary/all")
-    fun getAllSummaries(@RequestParam university: String): ResponseEntity<Any> {
-        // 레포지토리에 이미 만들어두신 summaryByUniversity 쿼리를 사용하여 데이터를 가져옵니다.
-        val summaries = reviewRepository.summaryByUniversity(university)
-        return ResponseEntity.ok(summaries)
+    fun getAllSummaries(@RequestParam university: String): ResponseEntity<List<ReviewSummaryRow>> {
+        // 🚀 레포지토리에 이미 만드신 쿼리 함수를 그대로 사용합니다.
+        return ResponseEntity.ok(reviewRepository.summaryByUniversity(university))
     }
 
-    // 🚀 [추가 2] 마이페이지 404 해결용 (내 리뷰 목록)
+    // 2. 내 리뷰 조회 API: 레포지토리의 실제 함수명으로 교체
     @GetMapping("/my")
     fun getMyReviews(@RequestParam userId: String): ResponseEntity<List<ReviewResponse>> {
-        // 에러 해결: findAllByUserId 대신 레포지토리에 있는 findAllByUserIdOrderByCreatedAtDesc를 사용합니다.
+        // 🚀 findAllByUserId -> findAllByUserIdOrderByCreatedAtDesc 로 수정 (빨간 줄 해결)
         val myReviews = reviewRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
         return ResponseEntity.ok(convertToResponse(myReviews, userId))
     }
 
-    // 🚀 [추가 3] 에러 해결을 위한 헬퍼 함수 (Review 엔티티를 Response DTO로 변환)
+    // 3. 변환 헬퍼 함수 추가 (빨간 줄 해결)
     private fun convertToResponse(reviews: List<Review>, userId: String?): List<ReviewResponse> {
         return reviews.map { review ->
             val lecture = lectureRepository.findFirstById(review.lectureId)
             ReviewResponse(
-                id = review.id,
-                lectureId = review.lectureId,
-                university = review.university,
-                userId = review.userId,
-                userName = review.userName,
-                rating = review.rating,
-                semester = review.semester,
-                content = review.content,
-                assignmentAmount = review.assignmentAmount,
-                teamProject = review.teamProject,
-                grading = review.grading,
-                attendance = review.attendance,
-                examCount = review.examCount,
-                createdAt = review.createdAt,
-                likesCount = review.likesCount,
-                commentsCount = review.commentsCount,
+                id = review.id, lectureId = review.lectureId, university = review.university,
+                userId = review.userId, userName = review.userName, rating = review.rating,
+                semester = review.semester, content = review.content,
+                assignmentAmount = review.assignmentAmount, teamProject = review.teamProject,
+                grading = review.grading, attendance = review.attendance, examCount = review.examCount,
+                createdAt = review.createdAt, likesCount = review.likesCount, commentsCount = review.commentsCount,
                 likedByUser = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
                 scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
-                lectureName = lecture?.name,
-                professor = lecture?.professor,
-                isAnonymous = review.isAnonymous ?: false
+                lectureName = lecture?.name, professor = lecture?.professor, isAnonymous = review.isAnonymous ?: false
             )
         }
     }

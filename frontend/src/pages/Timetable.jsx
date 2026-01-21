@@ -120,49 +120,47 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
 
   const handleLogout = () => { logout?.(); onLogout?.(); };
 
-  // 🚀 2. 보관/삭제 버튼 핸들러 (DB 연동)
+// Timetable.jsx 내 수정된 함수
   const handleToggleSaveTimetable = async (timetable) => {
-    // 이미 저장된 시간표인지 확인 (이름 기준)
     const savedItem = savedTimetables.find((t) => t.name === timetable.name);
     const isSaved = !!savedItem;
 
     try {
       if (isSaved) {
-        // 🗑️ 이미 저장됨 -> 삭제 API 호출
-        if (savedItem.id && typeof savedItem.id === 'number') { // DB ID가 있는 경우만
+        // 🗑️ 삭제 로직
+        if (savedItem.id) {
           await api.delete(`/timetable/saved/${savedItem.id}`);
           setSavedTimetables(prev => prev.filter(t => t.id !== savedItem.id));
+          alert("보관함에서 삭제되었습니다.");
         }
-      } // 💾 저장 안 됨 -> 저장 API 호출
+        return; // 🚀 중요: 삭제했으면 여기서 함수 종료!
+      }
 
-      // 1. 사용자 ID 확실하게 가져오기 (user.id가 없으면 로컬스토리지나 테스트값 사용)
-      const realUserId = user?.id || localStorage.getItem('userId') || "testUser";
-
-      // ID가 진짜 없는 경우 에러 방지
+      // 💾 저장 로직 (isSaved가 아닐 때만 실행됨)
+      const realUserId = user?.id || localStorage.getItem('userId');
       if (!realUserId) {
-        alert("로그인 정보가 확인되지 않습니다. 다시 로그인해주세요.");
+        alert("로그인 정보가 없습니다.");
         return;
       }
 
       const requestData = {
-        userId: realUserId, // ✅ 확실한 ID 값을 넣어줍니다.
+        userId: String(realUserId), // ✅ String 타입 보장
         name: timetable.name,
         lectureIds: timetable.courses.map(c => c.id)
       };
 
-      console.log("서버로 보내는 데이터:", requestData); // (디버깅용) 콘솔에서 확인 가능
-
       const response = await api.post('/timetable/save', requestData);
 
-      // 저장 성공 후 상태 업데이트 (응답받은 DB ID 사용)
       const newSaved = {
         ...timetable,
-        id: response.data // 백엔드가 반환한 저장된 ID (Long)
+        id: response.data
       };
-      setSavedTimetables([...savedTimetables, newSaved]);
+      setSavedTimetables(prev => [...prev, newSaved]);
+      alert("시간표가 보관되었습니다.");
+
     } catch (error) {
-      console.error("시간표 저장/삭제 실패:", error);
-      alert("작업을 처리하는 중 오류가 발생했습니다.");
+      console.error("실패:", error);
+      alert("처리에 실패했습니다. 서버 로그를 확인하세요.");
     }
   };
 
@@ -224,7 +222,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
                           <div key={timetable.id} className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center justify-between mb-4">
                               <h3 className="font-bold text-lg text-gray-900">{timetable.name} <span className="text-sm font-normal text-gray-500 ml-2">({timetable.totalCredits}학점)</span></h3>
-                              <button onClick={() => handleToggleSaveTimetable(timetable)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold ${isTimetableSaved(timetable.id) ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'}`}>
+                              <button onClick={() => handleToggleSaveTimetable(timetable)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold ${isTimetableSaved(timetable) ? 'bg-blue-100 text-blue-700' : 'bg-gray-100'}`}>
                                 {isTimetableSaved(timetable) ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />} {isTimetableSaved(timetable) ? '보관됨' : '보관'}
                               </button>
                             </div>
