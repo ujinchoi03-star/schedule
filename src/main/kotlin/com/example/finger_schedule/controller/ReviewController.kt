@@ -34,8 +34,15 @@ class ReviewController(
         @RequestParam(required = false) userId: String?
     ): ResponseEntity<List<ReviewResponse>> {
         val baseId = getBaseId(lectureId)
-        val reviews = reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(baseId)
         val lecture = lectureRepository.findFirstById(lectureId) ?: lectureRepository.findFirstById(baseId)
+        
+        // 🚀 [수정] 교수님 이름까지 일치하는 리뷰만 가져오기
+        val reviews = if (lecture != null) {
+            reviewRepository.findAllByLectureIdAndProfessorOrderByCreatedAtDesc(baseId, lecture.professor)
+        } else {
+            // 강의 정보를 못 찾으면 기존처럼 전체 가져오기 (예외 처리)
+            reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(baseId)
+        }
 
         val response = reviews.map { review ->
             ReviewResponse(
@@ -60,7 +67,7 @@ class ReviewController(
                 scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId)
                     .isNotEmpty() else false,
                 lectureName = lecture?.name,
-                professor = lecture?.professor,
+                professor = review.professor, // 🚀 저장된 교수님 이름 사용
                 isAnonymous = review.isAnonymous ?: false
             )
         }
@@ -70,6 +77,10 @@ class ReviewController(
     // 2. 리뷰 작성
     @PostMapping
     fun createReview(@RequestBody req: CreateReviewRequest): ResponseEntity<Any> {
+        // 🚀 [추가] 강의 ID로 교수님 정보 찾기
+        val lecture = lectureRepository.findFirstById(req.lectureId)
+        val professorName = lecture?.professor ?: ""
+
         val review = Review(
             lectureId = getBaseId(req.lectureId),
             university = req.university,
@@ -78,7 +89,13 @@ class ReviewController(
             rating = req.rating,
             semester = req.semester,
             content = req.content,
-            isAnonymous = req.isAnonymous
+            assignmentAmount = req.assignmentAmount ?: "medium",
+            teamProject = req.teamProject ?: "few",
+            grading = req.grading ?: "normal",
+            attendance = req.attendance ?: "direct",
+            examCount = req.examCount ?: 2,
+            isAnonymous = req.isAnonymous,
+            professor = professorName // 🚀 교수님 이름 저장
         )
         val saved = reviewRepository.save(review)
         return ResponseEntity.ok(saved)
@@ -133,11 +150,26 @@ class ReviewController(
     @GetMapping("/summary")
     fun getSummary(@RequestParam lectureId: String): ResponseEntity<ReviewSummaryResponse> {
         val baseId = getBaseId(lectureId)
-        val avg = reviewRepository.avgRatingByLectureId(baseId)
+        val lecture = lectureRepository.findFirstById(lectureId)
+        
+        // 🚀 [수정] 교수님별 통계 조회 (강의 정보가 없으면 기존처럼 전체 조회)
+        // 만약 lectureId로 찾은 강의가 있다면 그 강의의 교수님으로 필터링
+        val (count, avg) = if (lecture != null) {
+            Pair(
+                reviewRepository.countByLectureIdAndProfessor(baseId, lecture.professor),
+                reviewRepository.avgRatingByLectureIdAndProfessor(baseId, lecture.professor)
+            )
+        } else {
+            Pair(
+                reviewRepository.countByLectureId(baseId),
+                reviewRepository.avgRatingByLectureId(baseId)
+            )
+        }
+
         return ResponseEntity.ok(
             ReviewSummaryResponse(
                 baseId,
-                reviewRepository.countByLectureId(baseId),
+                count,
                 round(avg * 10) / 10.0
             )
         )
@@ -239,9 +271,10 @@ class ReviewController(
         @RequestParam userId: String,
         @RequestParam lectureId: String
     ): ResponseEntity<List<Long>> {
-        // 이미 만들어진 커스텀 쿼리를 활용합니다. 이 메서드는 특정 유저가 특정 강의의 리뷰 중 좋아요를 누른 것들의 ID 목록을 반환합니다.
+        val baseId = getBaseId(lectureId) // 🚀 핵심 수정: 분반 정보 제거 (예: ITE2031-01 -> ITE2031)
+        
         // Repository에 정의된 쿼리: SELECT l.reviewId FROM ReviewLike l WHERE l.userId = :userId AND l.reviewId IN (SELECT r.id FROM Review r WHERE r.lectureId = :lectureId)
-        val likedReviewIds = likeRepository.findReviewIdsByUserIdAndLectureId(userId, lectureId)
+        val likedReviewIds = likeRepository.findReviewIdsByUserIdAndLectureId(userId, baseId)
         return ResponseEntity.ok(likedReviewIds)
     }
 }
