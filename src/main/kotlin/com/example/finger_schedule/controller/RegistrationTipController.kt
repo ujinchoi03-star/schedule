@@ -90,7 +90,7 @@ class RegistrationTipController(
             val tip = RegistrationTip(
                 university = req.university,
                 userId = req.userId,
-                userName = if (req.isAnonymous) "익명" else req.userName,
+                userName = if (req.isAnonymous == true) "익명" else req.userName,
                 department = req.department,
                 category = req.category,
                 title = req.title,
