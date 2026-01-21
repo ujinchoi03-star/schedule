@@ -451,8 +451,12 @@ export function ReviewsPage({ user, onBack }) {
                     // 🚀 [수정 1] .slice(0, 100) 추가해서 최대 100개까지만 렌더링 (렉 방지)
                     filteredCourses.slice(0, 100).map((course, index) => {
 
-                      const s = summaryMap[course.id] || { count: 0, averageRating: 0 };
-                      const avgRating = s.averageRating.toFixed(1);
+                      // 🚀 1. ID에서 분반(-01)을 떼고 학수번호(GEN2094)만 가져옵니다.
+                      const baseId = course.id.includes('-') ? course.id.split('-')[0] : course.id;
+
+                      // 🚀 2. 이제 그 학수번호(baseId)로 점수 지도(summaryMap)에서 데이터를 찾습니다.
+                      const s = summaryMap[baseId] || { count: 0, averageRating: 0 };
+                      const avgRating = Number(s.averageRating || 0).toFixed(1);
                       const count = s.count;
 
                       return (
