@@ -322,7 +322,7 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
               className="absolute right-0 top-1 flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-xs font-bold text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all group"
           >
             <RotateCcw className="size-4 text-gray-400 group-hover:text-red-500 transition-colors" />
-            조건 초기화
+            조건 초g기화
           </button>
         </div>
 
