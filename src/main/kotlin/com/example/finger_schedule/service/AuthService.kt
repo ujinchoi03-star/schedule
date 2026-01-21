@@ -18,6 +18,15 @@ class AuthService(
     private val jwtTokenProvider: JwtTokenProvider
 ) {
 
+    // 👇 [추가] 한글 학교명을 영어 코드로 바꿔주는 마법의 함수
+    private fun convertToUniversityCode(input: String?): String {
+        return when (input) {
+            "한양대학교", "한양대", "HANYANG" -> "HANYANG"
+            "고려대학교", "고려대", "KOREA" -> "KOREA"
+            else -> "KOREA" // 기본값 (혹은 에러 처리)
+        }
+    }
+
     // 📝 회원가입
     @Transactional
     fun signup(request: SignupRequest) {
@@ -27,10 +36,14 @@ class AuthService(
 
         val encryptedPassword = passwordEncoder.encode(request.password)!!
 
+        val finalUniversity = request.university?.let { convertToUniversityCode(it) }
+
         val user = User(
             email = request.email,
             password = encryptedPassword,
-            nickname = request.nickname
+            nickname = request.nickname,
+
+            university = finalUniversity
         )
         userRepository.save(user)
     }
@@ -66,6 +79,7 @@ class AuthService(
         val user = userRepository.findByEmail(email)
             ?: throw IllegalArgumentException("사용자를 찾을 수 없습니다.")
 
+        user.university = convertToUniversityCode(request.university)
         user.university = request.university
         user.department = request.department
         user.grade = request.grade

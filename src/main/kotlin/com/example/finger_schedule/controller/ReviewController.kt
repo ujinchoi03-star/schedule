@@ -1,38 +1,21 @@
 package com.example.finger_schedule.controller
 
-import com.example.finger_schedule.dto.CreateReviewRequest
-import com.example.finger_schedule.dto.Review
-import com.example.finger_schedule.dto.ReviewSummaryResponse
-import com.example.finger_schedule.dto.ReviewSummaryRow
-import com.example.finger_schedule.dto.ReviewComment
-import com.example.finger_schedule.dto.ReviewLike
-import com.example.finger_schedule.dto.ReviewResponse
-import com.example.finger_schedule.repository.ReviewRepository
-import com.example.finger_schedule.repository.ReviewCommentRepository
-import com.example.finger_schedule.repository.ReviewLikeRepository
-import com.example.finger_schedule.repository.ReviewScrapRepository
+import com.example.finger_schedule.domain.Review
+import com.example.finger_schedule.dto.*
+import com.example.finger_schedule.repository.*
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.transaction.annotation.Transactional
 import kotlin.math.round
 import org.slf4j.LoggerFactory
 
-data class LikeResponse(
-    val reviewId: Long,
-    val liked: Boolean,
-    val likesCount: Long
-)
-
-data class CreateCommentRequest(
-    val reviewId: Long,
-    val userId: String,
-    val userName: String,
-    val content: String
-)
+// 🚀 요청/응답용 DTO 클래스 정의
+data class LikeResponse(val reviewId: Long, val liked: Boolean, val likesCount: Long)
+data class CreateCommentRequest(val reviewId: Long, val userId: String, val userName: String, val content: String)
 
 @RestController
 @RequestMapping("/api/reviews")
-@CrossOrigin(origins = ["http://localhost:5173"])
+@CrossOrigin(origins = ["http://localhost:5173", "http://127.0.0.1:5173"])
 class ReviewController(
     private val reviewRepository: ReviewRepository,
     private val commentRepository: ReviewCommentRepository,
@@ -41,22 +24,20 @@ class ReviewController(
     private val lectureRepository: com.example.finger_schedule.repository.LectureRepository
 ) {
     private val logger = LoggerFactory.getLogger(ReviewController::class.java)
-    // 강의별 리뷰 리스트
+
+    private fun getBaseId(fullId: String): String = fullId.split("-")[0]
+
+    // 1. 리뷰 조회
     @GetMapping
     fun getReviews(
         @RequestParam lectureId: String,
         @RequestParam(required = false) userId: String?
     ): ResponseEntity<List<ReviewResponse>> {
-        val reviews = reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(lectureId)
-        // String ID로 조회
-        val lecture = lectureRepository.findOneById(lectureId)
-        val lName = lecture?.name
-        val lProf = lecture?.professor
-        
+        val baseId = getBaseId(lectureId)
+        val reviews = reviewRepository.findAllByLectureIdOrderByCreatedAtDesc(baseId)
+        val lecture = lectureRepository.findFirstById(lectureId) ?: lectureRepository.findFirstById(baseId)
+
         val response = reviews.map { review ->
-            val liked = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false
-            val scraped = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false
-            
             ReviewResponse(
                 id = review.id,
                 lectureId = review.lectureId,
@@ -74,313 +55,164 @@ class ReviewController(
                 createdAt = review.createdAt,
                 likesCount = review.likesCount,
                 commentsCount = review.commentsCount,
-                likedByUser = liked,
-                scrapedByUser = scraped,
-                lectureName = lName,
-                professor = lProf,
+                likedByUser = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId)
+                    .isNotEmpty() else false,
+                scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId)
+                    .isNotEmpty() else false,
+                lectureName = lecture?.name,
+                professor = lecture?.professor,
                 isAnonymous = review.isAnonymous ?: false
             )
         }
         return ResponseEntity.ok(response)
     }
 
-    // 강의별 요약(평균/개수)
+    // 2. 리뷰 작성
+    @PostMapping
+    fun createReview(@RequestBody req: CreateReviewRequest): ResponseEntity<Any> {
+        val review = Review(
+            lectureId = getBaseId(req.lectureId),
+            university = req.university,
+            userId = req.userId,
+            userName = if (req.isAnonymous == true) "익명" else req.userName,
+            rating = req.rating,
+            semester = req.semester,
+            content = req.content,
+            isAnonymous = req.isAnonymous
+        )
+        val saved = reviewRepository.save(review)
+        return ResponseEntity.ok(saved)
+    }
+
+    // 3. 댓글 작성 (🚀 404 해결: 경로 확인 필수!)
+    @PostMapping("/{reviewId}/comments")
+    @Transactional
+    fun createComment(@PathVariable reviewId: Long, @RequestBody req: CreateCommentRequest): ResponseEntity<Any> {
+        val comment = ReviewComment(
+            reviewId = reviewId,
+            userId = req.userId,
+            userName = req.userName,
+            content = req.content
+        )
+        val saved = commentRepository.save(comment)
+
+        // 리뷰의 댓글 수 업데이트
+        reviewRepository.findById(reviewId).ifPresent {
+            it.commentsCount = commentRepository.countByReviewId(reviewId)
+            reviewRepository.save(it)
+        }
+        return ResponseEntity.ok(saved)
+    }
+
+    // 4. 좋아요 토글
+    @PostMapping("/{reviewId}/like")
+    @Transactional
+    fun toggleLike(@PathVariable reviewId: Long, @RequestParam userId: String): ResponseEntity<Any> {
+        val review = reviewRepository.findById(reviewId).orElse(null) ?: return ResponseEntity.notFound().build()
+        val existing = likeRepository.findByReviewIdAndUserId(reviewId, userId)
+        val liked = if (existing.isNotEmpty()) {
+            likeRepository.deleteAll(existing)
+            false
+        } else {
+            likeRepository.save(ReviewLike(reviewId = reviewId, userId = userId))
+            true
+        }
+        review.likesCount = likeRepository.countByReviewId(reviewId)
+        reviewRepository.save(review)
+        return ResponseEntity.ok(LikeResponse(reviewId, liked, review.likesCount))
+    }
+
+    // 5. 강의 요약 조회
     @GetMapping("/summary")
     fun getSummary(@RequestParam lectureId: String): ResponseEntity<ReviewSummaryResponse> {
-        val count = reviewRepository.countByLectureId(lectureId)
-        val avg = reviewRepository.avgRatingByLectureId(lectureId)
+        val baseId = getBaseId(lectureId)
+        val avg = reviewRepository.avgRatingByLectureId(baseId)
         return ResponseEntity.ok(
             ReviewSummaryResponse(
-                lectureId = lectureId,
-                count = count,
-                averageRating = round(avg * 10) / 10.0
+                baseId,
+                reviewRepository.countByLectureId(baseId),
+                round(avg * 10) / 10.0
             )
         )
     }
 
-    // 학교별 모든 강의 요약
+    // 🚀 [추가 1] 왼쪽 목록 0점 방지용 (전체 요약 API)
     @GetMapping("/summary/all")
-    fun getAllSummary(@RequestParam university: String): ResponseEntity<List<ReviewSummaryRow>> {
-        logger.info("학교별 요약 조회: $university")
+    fun getAllSummaries(@RequestParam university: String): ResponseEntity<Any> {
+        // 레포지토리에 이미 만들어두신 summaryByUniversity 쿼리를 사용하여 데이터를 가져옵니다.
         val summaries = reviewRepository.summaryByUniversity(university)
         return ResponseEntity.ok(summaries)
     }
 
-    // 리뷰 작성
-    @PostMapping
-    fun createReview(@RequestBody req: CreateReviewRequest): ResponseEntity<Any> {
-        try {
-            logger.info("리뷰 작성 요청: $req")
-            
-            val review = Review(
-                lectureId = req.lectureId,
-                university = req.university,
-                userId = req.userId,
-                userName = if (req.isAnonymous) "익명" else req.userName,
-                rating = req.rating,
-                semester = req.semester,
-                content = req.content,
-                assignmentAmount = req.assignmentAmount ?: "medium",
-                teamProject = req.teamProject ?: "few",
-                grading = req.grading ?: "normal",
-                attendance = req.attendance ?: "direct",
-                examCount = req.examCount ?: 2,
-                isAnonymous = req.isAnonymous
+    // 🚀 [추가 2] 마이페이지 404 해결용 (내 리뷰 목록)
+    @GetMapping("/my")
+    fun getMyReviews(@RequestParam userId: String): ResponseEntity<List<ReviewResponse>> {
+        // 에러 해결: findAllByUserId 대신 레포지토리에 있는 findAllByUserIdOrderByCreatedAtDesc를 사용합니다.
+        val myReviews = reviewRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
+        return ResponseEntity.ok(convertToResponse(myReviews, userId))
+    }
+
+    // 🚀 [추가 3] 에러 해결을 위한 헬퍼 함수 (Review 엔티티를 Response DTO로 변환)
+    private fun convertToResponse(reviews: List<Review>, userId: String?): List<ReviewResponse> {
+        return reviews.map { review ->
+            val lecture = lectureRepository.findFirstById(review.lectureId)
+            ReviewResponse(
+                id = review.id,
+                lectureId = review.lectureId,
+                university = review.university,
+                userId = review.userId,
+                userName = review.userName,
+                rating = review.rating,
+                semester = review.semester,
+                content = review.content,
+                assignmentAmount = review.assignmentAmount,
+                teamProject = review.teamProject,
+                grading = review.grading,
+                attendance = review.attendance,
+                examCount = review.examCount,
+                createdAt = review.createdAt,
+                likesCount = review.likesCount,
+                commentsCount = review.commentsCount,
+                likedByUser = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
+                scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
+                lectureName = lecture?.name,
+                professor = lecture?.professor,
+                isAnonymous = review.isAnonymous ?: false
             )
-            
-            logger.info("저장할 Review 객체: $review")
-            val saved = reviewRepository.save(review)
-            logger.info("저장 성공: ${saved.id}")
-            
-            return ResponseEntity.ok(saved)
-        } catch (e: Exception) {
-            logger.error("리뷰 저장 중 오류 발생", e)
-            return ResponseEntity.status(500).body(mapOf(
-                "error" to e.message,
-                "details" to e.stackTraceToString()
-            ))
         }
     }
-
-    // 좋아요 토글
-    @PostMapping("/{reviewId}/like")
-    @Transactional
-    fun toggleLike(
-        @PathVariable reviewId: Long,
-        @RequestParam userId: String
-    ): ResponseEntity<Any> {
-        return try {
-            logger.info("좋아요 토글 요청: reviewId=$reviewId, userId=$userId")
-            
-            val review = reviewRepository.findById(reviewId).orElse(null)
-                ?: return ResponseEntity.notFound().build()
-
-            val existing = likeRepository.findByReviewIdAndUserId(reviewId, userId)
-            logger.info("기존 좋아요: ${existing.size}개")
-
-            val liked = if (existing.isNotEmpty()) {
-                likeRepository.deleteAll(existing)
-                likeRepository.flush()
-                logger.info("좋아요 삭제")
-                false
-            } else {
-                likeRepository.save(ReviewLike(reviewId = reviewId, userId = userId))
-                likeRepository.flush()
-                logger.info("좋아요 저장")
-                true
-            }
-
-            val cnt = likeRepository.countByReviewId(reviewId)
-            logger.info("좋아요 개수: $cnt")
-            review.likesCount = cnt
-            reviewRepository.save(review)
-
-            ResponseEntity.ok(LikeResponse(reviewId = reviewId, liked = liked, likesCount = cnt))
-        } catch (e: Exception) {
-            logger.error("좋아요 처리 에러", e)
-            ResponseEntity.status(500).body(mapOf("error" to (e.message ?: "Unknown error")))
-        }
-    }
-
-    // 유저가 좋아요한 리뷰 ID 목록 조회
-    @GetMapping("/likes")
-    fun getUserLikes(
-        @RequestParam lectureId: String,
-        @RequestParam userId: String
-    ): ResponseEntity<List<Long>> {
-        return try {
-            val ids = likeRepository.findReviewIdsByUserIdAndLectureId(userId, lectureId)
-            ResponseEntity.ok(ids)
-        } catch (e: Exception) {
-            logger.error("좋아요 목록 조회 에러", e)
-            ResponseEntity.ok(emptyList())
-        }
-    }
-
-    // 댓글 조회
-    @GetMapping("/{reviewId}/comments")
-    fun getComments(@PathVariable reviewId: Long): ResponseEntity<List<ReviewComment>> {
-        try {
-            logger.info("댓글 조회: reviewId=$reviewId")
-            val comments = commentRepository.findAllByReviewIdOrderByCreatedAtAsc(reviewId)
-            logger.info("댓글 개수: ${comments.size}")
-            return ResponseEntity.ok(comments)
-        } catch (e: Exception) {
-            logger.error("댓글 조회 에러", e)
-            return ResponseEntity.ok(emptyList())
-        }
-    }
-
-    // 댓글 작성
-    @PostMapping("/{reviewId}/comments")
-    @Transactional
-    fun createComment(
-        @PathVariable reviewId: Long,
-        @RequestBody req: CreateCommentRequest
-    ): ResponseEntity<Any> {
-        return try {
-            logger.info("댓글 저장 요청: reviewId=$reviewId, req=$req")
-            
-            if (req.reviewId != reviewId) {
-                logger.warn("reviewId 불일치: pathId=$reviewId, reqId=${req.reviewId}")
-                return ResponseEntity.badRequest().build()
-            }
-
-            val comment = ReviewComment(
-                reviewId = reviewId,
-                userId = req.userId,
-                userName = req.userName,
-                content = req.content
-            )
-            val saved = commentRepository.save(comment)
-            // flush to ensure count sees it (though hibernate usually auto-flushes before query)
-            commentRepository.flush()
-            
-            logger.info("댓글 저장 성공: ${saved.id}")
-
-            // 댓글 개수 업데이트
-            val count = commentRepository.countByReviewId(reviewId)
-            logger.info("갱신된 댓글 개수: $count")
-            
-            val review = reviewRepository.findById(reviewId).orElse(null)
-            if (review != null) {
-                review.commentsCount = count
-                reviewRepository.save(review)
-            }
-            
-            ResponseEntity.ok(saved)
-        } catch (e: Exception) {
-            logger.error("댓글 저장 에러", e)
-            ResponseEntity.status(500).body(mapOf("error" to (e.message ?: "Unknown error")))
-        }
-    }
-
-    // 스크랩 토글
+    // 6. 강의평 스크랩 토글 (🚀 404 해결을 위해 추가)
     @PostMapping("/{reviewId}/scrap")
     @Transactional
     fun toggleScrap(
         @PathVariable reviewId: Long,
         @RequestParam userId: String
     ): ResponseEntity<Any> {
-        return try {
-            logger.info("스크랩 토글 요청: reviewId=$reviewId, userId=$userId")
-            val existing = scrapRepository.findByReviewIdAndUserId(reviewId, userId)
-            val scraped = if (existing.isNotEmpty()) {
-                scrapRepository.deleteAll(existing)
-                scrapRepository.flush()
-                logger.info("스크랩 삭제 완료")
-                false
-            } else {
-                scrapRepository.save(com.example.finger_schedule.dto.ReviewScrap(reviewId = reviewId, userId = userId))
-                scrapRepository.flush()
-                logger.info("스크랩 저장 완료")
-                true
-            }
-            ResponseEntity.ok(mapOf("scraped" to scraped))
-        } catch (e: Exception) {
-            logger.error("스크랩 토글 에러", e)
-            ResponseEntity.status(500).body(mapOf("error" to e.message))
-        }
-    }
+        // 1. 해당 유저가 이미 이 리뷰를 스크랩했는지 확인
+        val existing = scrapRepository.findByReviewIdAndUserId(reviewId, userId)
 
-    // 스크랩한 리뷰 목록
-    @GetMapping("/scraped")
-    fun getScrapedReviews(@RequestParam userId: String): ResponseEntity<List<ReviewResponse>> {
-        val scraps = scrapRepository.findByUserId(userId)
-        val reviewIds = scraps.map { it.reviewId }
-        val reviews = reviewRepository.findAllById(reviewIds)
-
-        // 강의 정보 조회 (bulk)
-        val lectureIds = reviews.map { it.lectureId }.distinct()
-        val lectures = lectureRepository.findByIdIn(lectureIds)
-         val lectureMap = lectures.associateBy { it.id }
-
-        val response = reviews.map { review ->
-            val lecture = lectureMap[review.lectureId]
-            ReviewResponse(
-                id = review.id,
-                lectureId = review.lectureId,
-                university = review.university,
-                userId = review.userId,
-                userName = review.userName,
-                rating = review.rating,
-                semester = review.semester,
-                content = review.content,
-                assignmentAmount = review.assignmentAmount,
-                teamProject = review.teamProject,
-                grading = review.grading,
-                attendance = review.attendance,
-                examCount = review.examCount,
-                createdAt = review.createdAt,
-                likesCount = review.likesCount,
-                commentsCount = review.commentsCount,
-                likedByUser = likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty(),
-                scrapedByUser = true,
-                lectureName = lecture?.name,
-                professor = lecture?.professor,
-                isAnonymous = review.isAnonymous ?: false
+        val scrapped = if (existing.isNotEmpty()) {
+            // 2. 이미 존재하면 삭제 (스크랩 취소)
+            scrapRepository.deleteAll(existing)
+            false
+        } else {
+            // 3. 존재하지 않으면 새로 저장 (스크랩 추가)
+            // 💡 주의: ReviewScrap 패키지 경로가 domain이어야 합니다.
+            scrapRepository.save(
+                com.example.finger_schedule.domain.ReviewScrap(
+                    reviewId = reviewId,
+                    userId = userId
+                )
             )
+            true
         }
-        return ResponseEntity.ok(response)
-    }
 
-    // 내가 쓴 리뷰 목록
-    @GetMapping("/my")
-    fun getMyReviews(@RequestParam userId: String): ResponseEntity<List<ReviewResponse>> {
-        val reviews = reviewRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
-
-        // 강의 정보 조회 (bulk)
-        val lectureIds = reviews.map { it.lectureId }.distinct()
-        val lectures = lectureRepository.findByIdIn(lectureIds)
-        val lectureMap = lectures.associateBy { it.id }
-
-        val response = reviews.map { review ->
-            val lecture = lectureMap[review.lectureId]
-            ReviewResponse(
-                id = review.id,
-                lectureId = review.lectureId,
-                university = review.university,
-                userId = review.userId,
-                userName = review.userName,
-                rating = review.rating,
-                semester = review.semester,
-                content = review.content,
-                assignmentAmount = review.assignmentAmount,
-                teamProject = review.teamProject,
-                grading = review.grading,
-                attendance = review.attendance,
-                examCount = review.examCount,
-                createdAt = review.createdAt,
-                likesCount = review.likesCount,
-                commentsCount = review.commentsCount,
-                likedByUser = likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty(),
-                scrapedByUser = scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty(),
-                lectureName = lecture?.name,
-                professor = lecture?.professor,
-                isAnonymous = review.isAnonymous ?: false
+        return ResponseEntity.ok(
+            mapOf(
+                "reviewId" to reviewId,
+                "scrapped" to scrapped
             )
-        }
-        return ResponseEntity.ok(response)
-    }
-
-    // 리뷰 삭제
-    @DeleteMapping("/{reviewId}")
-    @Transactional
-    fun deleteReview(@PathVariable reviewId: Long): ResponseEntity<Any> {
-        return try {
-            val review = reviewRepository.findById(reviewId).orElse(null)
-                ?: return ResponseEntity.notFound().build()
-            
-            // 연관 데이터 삭제 (좋아요, 스크랩, 댓글)
-            likeRepository.deleteByReviewId(reviewId)
-            scrapRepository.deleteByReviewId(reviewId)
-            commentRepository.deleteByReviewId(reviewId)
-            
-            reviewRepository.delete(review)
-            ResponseEntity.ok().build()
-        } catch (e: Exception) {
-            logger.error("리뷰 삭제 에러", e)
-            ResponseEntity.status(500).body(mapOf("error" to e.message))
-        }
+        )
+        // 🚀 모든 함수가 클래스 닫는 중괄호 안에 있어야 합니다.
     }
 }

@@ -1,6 +1,6 @@
 package com.example.finger_schedule.repository
 
-import com.example.finger_schedule.dto.Review
+import com.example.finger_schedule.domain.Review
 import com.example.finger_schedule.dto.ReviewSummaryRow
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query

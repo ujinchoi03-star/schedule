@@ -12,6 +12,18 @@ import {
 } from 'lucide-react';
 import api from '../api/axios'; // 🌟 [핵심] axios 인스턴스 사용
 
+const DAY_TRANSLATOR = {
+  "Mon": "월", "Tue": "화", "Wed": "수", "Thu": "목", "Fri": "금", "Sat": "토", "Sun": "일"
+};
+
+const formatMinuteToTime = (minutes) => {
+  if (minutes === undefined || minutes === null || minutes <= 0) return null;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${m.toString().padStart(2, '0')}`;
+};
+
+
 export function ReviewsPage({ user, onBack }) {
   // --- 상태 관리 ---
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,7 +122,19 @@ export function ReviewsPage({ user, onBack }) {
         const summaryRes = await api.get('/reviews/summary', {
           params: { lectureId: selectedCourseId }
         });
-        setSummary(summaryRes.data || { count: 0, averageRating: 0.0 });
+
+        const stats = summaryRes.data || { count: 0, averageRating: 0.0 };
+      // 1️⃣ 오른쪽 상세 정보 갱신
+        setSummary(stats);
+
+        // 2️⃣ 🚀 왼쪽 목록 데이터 동기화 (0점 방지 핵심 코드)
+        setSummaryMap(prev => ({
+          ...prev,
+          [selectedCourseId]: {
+            count: Number(stats.count || 0),
+            averageRating: Number(stats.averageRating || 0)
+          }
+        }));
 
         // 내 좋아요 목록
         if (user?.email) {
@@ -144,20 +168,12 @@ export function ReviewsPage({ user, onBack }) {
 
     // 2단계: 🚀 [추가됨] 이름+교수님이 같으면 중복 제거 (하나만 남기기)
     const uniqueMap = new Map();
-
     matched.forEach((course) => {
-      // 중복을 판별할 키: "강의명-교수님" (예: "기초공학-김철수")
-      const key = `${course.name}-${course.professor}`;
-
-      // 아직 맵에 없으면 추가 (처음 발견한 것만 남김)
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, course);
-      }
+      const key = `${course.name}-${course.professor}`; // 중복 판별 기준
+      if (!uniqueMap.has(key)) uniqueMap.set(key, course);
     });
-
     // 맵에 남은 유일한 강의들만 배열로 반환
     return Array.from(uniqueMap.values());
-
   }, [courses, searchTerm]);
 
   const selectedCourse = selectedCourseId
@@ -209,16 +225,13 @@ export function ReviewsPage({ user, onBack }) {
       const sumRes = await api.get('/reviews/summary', { params: { lectureId: selectedCourse.id } });
       const newSum = sumRes.data;
       setSummary(newSum);
-
-      // 전체 맵도 갱신
-      setSummaryMap((prev) => ({
+      setSummaryMap(prev => ({
         ...prev,
         [selectedCourse.id]: {
           count: Number(newSum?.count || 0),
           averageRating: Number(newSum?.averageRating || 0),
         },
       }));
-
       // 폼 초기화
       setShowWriteReview(false);
       setNewReview({ rating: 5, semester: '', content: '', assignmentAmount: 'medium', teamProject: 'few', grading: 'normal', attendance: 'direct', examCount: 2 });
@@ -644,13 +657,28 @@ export function ReviewsPage({ user, onBack }) {
                           </div>
                       ) : (
                           courseReviews.map((review) => {
+
+                            const tags = review.details ? review.details.split(',').map(t => t.trim()) : [];
                             const isExpanded = expandedReviewId === review.id;
                             const isLong = review.content.length > 100;
+                            const hasTime = review.startTime && review.startTime > 0;
+                            const timeText = hasTime
+                                ? `${DAY_TRANSLATOR[review.day] || review.day} ${formatMinuteToTime(review.startTime)}~${formatMinuteToTime(review.endTime)}`
+                                : "온라인 / 시간 미정";
 
                             return (
                                 <div key={review.id} className="p-5 border border-gray-200 rounded-xl hover:border-blue-200 transition-colors">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div>
+                                  <div className="flex flex-wrap gap-1 mb-3">
+                                    {tags.map((tag, i) => (
+                                        <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+              #{tag}
+            </span>
+                                    ))}
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-2">
+                                    <span>{timeText}</span> {/* 🕒 시간을 화면에 표시 */}
+                                  </div>
+                                  <div className="flex justify-between items-start mb-2"><div>
                                       <div className="flex items-center gap-2">
                                         <span className="font-bold text-gray-900">{review.isAnonymous ? "익명" : review.userName}</span>
                                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{review.semester}</span>
