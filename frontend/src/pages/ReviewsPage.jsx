@@ -74,7 +74,7 @@ export function ReviewsPage({ user, onBack }) {
     const fetchCourses = async () => {
       setLoadingCourses(true);
       try {
-        const res = await api.get('/lectures', {
+        const res = await api.get('/api/lectures', {
           params: { university: uniCode }
         });
         setCourses(Array.isArray(res.data) ? res.data : []);
@@ -92,7 +92,7 @@ export function ReviewsPage({ user, onBack }) {
   useEffect(() => {
     if (!uniCode) return;
 
-    api.get('/reviews/summary/all', { params: { university: uniCode } })
+    api.get('/api/reviews/summary/all', { params: { university: uniCode } })
         .then((res) => {
           const map = {};
           (Array.isArray(res.data) ? res.data : []).forEach((r) => {
@@ -120,7 +120,7 @@ export function ReviewsPage({ user, onBack }) {
     const fetchReviewsAndSummary = async () => {
       try {
         // 리뷰 목록
-        const reviewsRes = await api.get('/reviews', {
+        const reviewsRes = await api.get('/api/reviews', {
           params: {
             lectureId: selectedCourseId,
             userId: user?.email // 🚀 [추가] 좋아요/스크랩 여부 확인용
@@ -129,7 +129,7 @@ export function ReviewsPage({ user, onBack }) {
         setReviews(Array.isArray(reviewsRes.data) ? reviewsRes.data : []);
 
         // 상세 통계
-        const summaryRes = await api.get('/reviews/summary', {
+        const summaryRes = await api.get('/api/reviews/summary', {
           params: { lectureId: selectedCourseId }
         });
 
@@ -150,7 +150,7 @@ export function ReviewsPage({ user, onBack }) {
 
         // 내 좋아요 목록
         if (user?.email) {
-          const likesRes = await api.get('/reviews/likes', {
+          const likesRes = await api.get('/api/reviews/likes', {
             params: { userId: user.email, lectureId: selectedCourseId }
           });
           const map = {};
@@ -227,14 +227,14 @@ export function ReviewsPage({ user, onBack }) {
     };
 
     try {
-      await api.post('/reviews', payload);
+      await api.post('/api/reviews', payload);
       alert('강의평이 작성되었습니다!');
 
       // 목록 및 통계 갱신
-      const listRes = await api.get('/reviews', { params: { lectureId: selectedCourse.id } });
+      const listRes = await api.get('/api/reviews', { params: { lectureId: selectedCourse.id } });
       setReviews(listRes.data);
 
-      const sumRes = await api.get('/reviews/summary', { params: { lectureId: selectedCourse.id } });
+      const sumRes = await api.get('/api/reviews/summary', { params: { lectureId: selectedCourse.id } });
       const newSum = sumRes.data;
       setSummary(newSum);
 
@@ -261,7 +261,7 @@ export function ReviewsPage({ user, onBack }) {
 
   const handleLikeReview = async (reviewId) => {
     try {
-      const res = await api.post(`/reviews/${reviewId}/like`, null, {
+      const res = await api.post(`/api/reviews/${reviewId}/like`, null, {
         params: { userId: user?.email }
       });
       const data = res.data;
@@ -283,7 +283,7 @@ export function ReviewsPage({ user, onBack }) {
   const handleScrapReview = async (reviewId) => {
     try {
       // 🚀 백엔드에 스크랩 토글 요청 (userId는 현재 로그인한 유저 정보)
-      const response = await api.post(`/reviews/${reviewId}/scrap`, null, {
+      const response = await api.post(`/api/reviews/${reviewId}/scrap`, null, {
         params: { userId: user.email }
       });
 
@@ -305,7 +305,7 @@ export function ReviewsPage({ user, onBack }) {
   };
   const loadComments = async (reviewId) => {
     try {
-      const res = await api.get(`/reviews/${reviewId}/comments`);
+      const res = await api.get(`/api/reviews/${reviewId}/comments`);
       setCommentsByReview((prev) => ({ ...prev, [reviewId]: res.data }));
     } catch {
       setCommentsByReview((prev) => ({ ...prev, [reviewId]: [] }));
@@ -317,7 +317,7 @@ export function ReviewsPage({ user, onBack }) {
     if (!text) return;
 
     try {
-      const res = await api.post(`/reviews/${reviewId}/comments`, {
+      const res = await api.post(`/api/reviews/${reviewId}/comments`, {
         reviewId: Number(reviewId),
         userId: user?.email,
         userName: user?.name,

@@ -45,7 +45,7 @@ export function CustomTimetablePage({ user }) {
         // 학교 정보가 없으면 기본값 'KOREA' (테스트용)
         const univ = user?.university || 'KOREA';
 
-        const response = await api.get('/timetable/lectures', {
+        const response = await api.get('/api/timetable/lectures', {
           params: { university: univ }
         });
 

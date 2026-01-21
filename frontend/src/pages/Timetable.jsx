@@ -64,7 +64,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
       if (!user?.id) return;
       try {
         // 백엔드 API 호출 (/saved/{userId})
-        const response = await api.get(`/timetable/saved/${user.id}`);
+        const response = await api.get(`/api/timetable/saved/${user.id}`);
 
         // 받아온 데이터를 프론트엔드 형식에 맞게 변환
         const formatted = response.data.map(t => ({
@@ -105,7 +105,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
           minRating: 0, onlyMajor: false, excludeNoTime: true
         };
 
-        const response = await api.post('/timetable/generate', requestData);
+        const response = await api.post('/api/timetable/generate', requestData);
         setRecommendedTimetables(formatTimetableData(response.data));
 
       } catch (error) {
@@ -149,7 +149,7 @@ export function Timetable({ user, onLogout, onBack, onGoToMyPage, generatedResul
         lectureIds: timetable.courses.map(c => c.id)
       };
 
-      const response = await api.post('/timetable/save', requestData);
+      const response = await api.post('/api/timetable/save', requestData);
 
       const newSaved = {
         ...timetable,

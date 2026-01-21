@@ -53,10 +53,10 @@ export function MyPage({ user, onSave, onBack }) {
     const fetchData = async () => {
       try {
         const [tipsRes, reviewsRes, myTipsRes, myReviewsRes] = await Promise.all([
-          api.get(`/tips/scraped?userId=${user.email}`),
-          api.get(`/reviews/scraped?userId=${user.email}`),
-          api.get(`/tips/my?userId=${user.email}`),
-          api.get(`/reviews/my?userId=${user.email}`)
+          api.get(`/api/tips/scraped?userId=${user.email}`),
+          api.get(`/api/reviews/scraped?userId=${user.email}`),
+          api.get(`/api/tips/my?userId=${user.email}`),
+          api.get(`/api/reviews/my?userId=${user.email}`)
         ]);
 
         setScrapedTips(Array.isArray(tipsRes.data) ? tipsRes.data : []);
@@ -75,7 +75,7 @@ export function MyPage({ user, onSave, onBack }) {
   const handleUnscrapTip = async (tipId) => {
     if (!window.confirm("스크랩을 취소하시겠습니까?")) return;
     try {
-      await api.post(`/tips/${tipId}/scrap?userId=${user.email}`);
+      await api.post(`/api/tips/${tipId}/scrap?userId=${user.email}`);
       setScrapedTips((prev) => prev.filter((t) => t.id !== tipId));
     } catch (e) {
       alert("오류가 발생했습니다.");
@@ -85,7 +85,7 @@ export function MyPage({ user, onSave, onBack }) {
   const handleUnscrapReview = async (reviewId) => {
     if (!window.confirm("스크랩을 취소하시겠습니까?")) return;
     try {
-      await api.post(`/reviews/${reviewId}/scrap?userId=${user.email}`);
+      await api.post(`/api/reviews/${reviewId}/scrap?userId=${user.email}`);
       setScrapedReviews((prev) => prev.filter((r) => r.id !== reviewId));
     } catch (e) {
       alert("오류가 발생했습니다.");
@@ -95,7 +95,7 @@ export function MyPage({ user, onSave, onBack }) {
   const handleDeleteReview = async (reviewId) => {
     if (!window.confirm("정말로 이 강의평을 삭제하시겠습니까?")) return;
     try {
-      await api.delete(`/reviews/${reviewId}`);
+      await api.delete(`/api/reviews/${reviewId}`);
       setMyReviews((prev) => prev.filter((r) => r.id !== reviewId));
       alert("삭제되었습니다.");
     } catch (e) {
@@ -106,7 +106,7 @@ export function MyPage({ user, onSave, onBack }) {
   const handleDeleteTip = async (tipId) => {
     if (!window.confirm("정말로 이 팁을 삭제하시겠습니까?")) return;
     try {
-      await api.delete(`/tips/${tipId}?userId=${user.email}`);
+      await api.delete(`/api/tips/${tipId}?userId=${user.email}`);
       setMyTips(prev => prev.filter(t => t.id !== tipId));
       alert("삭제되었습니다.");
     } catch (e) {
@@ -117,14 +117,14 @@ export function MyPage({ user, onSave, onBack }) {
   const handleUpdateTip = async () => {
     if (!editingTip) return;
     try {
-      await api.put(`/tips/${editingTip.id}`, {
+      await api.put(`/api/tips/${editingTip.id}`, {
         ...editingTip,
         userId: user.email
       });
       alert("수정되었습니다.");
       setEditingTip(null);
 
-      const res = await api.get(`/tips/my?userId=${user.email}`);
+      const res = await api.get(`/api/tips/my?userId=${user.email}`);
       setMyTips(res.data);
     } catch (e) {
       alert("수정 실패");
@@ -160,7 +160,7 @@ export function MyPage({ user, onSave, onBack }) {
     };
 
     try {
-      await api.patch("/auth/onboarding", {
+      await api.patch("/api/auth/onboarding", {
         university: updatedUser.university,
         department: updatedUser.department,
         grade: updatedUser.grade,

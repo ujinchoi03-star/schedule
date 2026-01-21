@@ -23,7 +23,7 @@ export function OnboardingPage({ user, onComplete }) {
 
       // ✅ [백엔드 연결] 회원 정보 업데이트 요청
       // 이 요청을 보내면 DB의 users 테이블에 학교, 학과, 학년이 저장됩니다.
-      await api.patch('/auth/onboarding', {
+      await api.patch('/api/auth/onboarding', {
         university: selectedUniversity.code, // "KOREA" or "HANYANG"
         department: department,              // 유저가 입력한 텍스트
         grade: grade

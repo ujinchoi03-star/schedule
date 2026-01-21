@@ -51,7 +51,7 @@ export function SavedTimetablesPage({ user, onBack }) {
                 const userId = user?.id || localStorage.getItem('userId');
                 if (!userId) return;
 
-                const response = await api.get(`/timetable/saved/${userId}`);
+                const response = await api.get(`/api/timetable/saved/${userId}`);
 
                 if (response.data) {
                     const formatted = response.data.map(t => ({

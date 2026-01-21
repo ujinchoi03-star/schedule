@@ -42,7 +42,7 @@ function CourseSearchModal({ isOpen, onClose, onSelect, type, userUniversity }) 
     try {
       setIsSearching(true);
       const searchType = type === 'avoid' ? null : type;
-      const response = await api.get('/lectures', {
+      const response = await api.get('api/lectures', {
         params: { university: userUniversity || 'KOREA', keyword: searchTerm, type: searchType }
       });
       setSearchResults(response.data);
@@ -264,7 +264,7 @@ export function SemesterSelectionPage({ user, onBack, onNext }) {
         })),
         minRating: Number(minRating), onlyMajor: false, excludeNoTime: true
       };
-      const response = await api.post('/timetable/generate', requestData);
+      const response = await api.post('/api/timetable/generate', requestData);
       onNext(response.data);
     } catch (error) {
       alert(error.response?.data?.message || "시간표 생성 실패!");

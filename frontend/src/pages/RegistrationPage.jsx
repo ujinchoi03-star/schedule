@@ -45,7 +45,7 @@ export function RegistrationPage({ user, onBack }) {
   // ✅ 팁 목록 불러오기 (api 사용)
   const fetchTips = async () => {
     try {
-      const res = await api.get('/tips', {
+      const res = await api.get('/api/tips', {
         params: {
           university: user.university,
           category: selectedCategory,
@@ -79,7 +79,7 @@ export function RegistrationPage({ user, onBack }) {
     }
 
     try {
-      await api.post('/tips', {
+      await api.post('/api/tips', {
         ...newTip,
         university: user.university,
         userId: user.email,
@@ -101,7 +101,7 @@ export function RegistrationPage({ user, onBack }) {
   // 좋아요 핸들러
   const handleLikeTip = async (tipId) => {
     try {
-      const res = await api.post(`/tips/${tipId}/like?userId=${user.email}`);
+      const res = await api.post(`/api/tips/${tipId}/like?userId=${user.email}`);
       const { liked, likesCount } = res.data;
 
       setTips(prev => prev.map(tip =>
@@ -117,7 +117,7 @@ export function RegistrationPage({ user, onBack }) {
   // 스크랩 핸들러
   const handleScrapTip = async (tipId) => {
     try {
-      const res = await api.post(`/tips/${tipId}/scrap?userId=${user.email}`);
+      const res = await api.post(`/api/tips/${tipId}/scrap?userId=${user.email}`);
       const { scraped } = res.data;
 
       setTips(prev => prev.map(tip =>
@@ -135,7 +135,7 @@ export function RegistrationPage({ user, onBack }) {
     if (!newComment[tipId]?.trim()) return;
 
     try {
-      await api.post(`/tips/${tipId}/comments`, {
+      await api.post(`/api/tips/${tipId}/comments`, {
         content: newComment[tipId],
         userId: user.email,
         userName: user.name
@@ -152,7 +152,7 @@ export function RegistrationPage({ user, onBack }) {
   // 댓글 불러오기
   const fetchComments = async (tipId) => {
     try {
-      const res = await api.get(`/tips/${tipId}/comments`);
+      const res = await api.get(`/api/tips/${tipId}/comments`);
       // 기존 댓글 목록에서 해당 팁의 댓글만 교체하거나 추가하는 방식
       setTipComments(prev => {
         const others = prev.filter(c => c.tipId !== tipId);

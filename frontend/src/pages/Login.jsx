@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Calendar, Clock, BookOpen, Eye, EyeOff, AlertCircle } from "lucide-react";
-import axios from "axios";
+import api from '../api/axios';
 
 export default function Login({ onLogin }) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -38,8 +38,8 @@ export default function Login({ onLogin }) {
 
     try {
       if (isSignUp) {
-        // [회원가입]
-        await axios.post("http://localhost:8080/api/auth/signup", {
+        // [회원가입] - 우리가 만든 api 인스턴스 사용
+        await api.post("/api/auth/signup", {
           email: email,
           password: password,
           nickname: name,
@@ -49,29 +49,25 @@ export default function Login({ onLogin }) {
         setIsSignUp(false);
         resetForm();
       } else {
-        // [로그인]
-        const response = await axios.post("http://localhost:8080/api/auth/login", {
+        // [로그인] - 우리가 만든 api 인스턴스 사용
+        const response = await api.post("/api/auth/login", {
           email: email,
           password: password,
         });
 
-        // 🌟 [중요] 내 코드의 로직을 유지해야 함 (localStorage 저장 필수)
-        // 상대방 코드에 있는 'id' 필드도 혹시 모르니 같이 받아줍니다.
         const { token, email: serverEmail, nickname, university, department, grade, id } = response.data;
 
-        // 1. 브라우저 저장 (이게 핵심!)
         localStorage.setItem("accessToken", token);
-        localStorage.setItem("userId", serverEmail || email); // 백엔드에서 email 안 주면 입력값 사용
+        localStorage.setItem("userId", serverEmail || email);
         localStorage.setItem("nickname", nickname);
 
-        // 2. 로그인 정보 전달
         onLogin({
           name: nickname,
           email: serverEmail || email,
           university: university,
           department: department,
           grade: grade,
-          id: id // 상대방 코드에 있던 id 필드도 유지
+          id: id
         });
       }
     } catch (err) {
