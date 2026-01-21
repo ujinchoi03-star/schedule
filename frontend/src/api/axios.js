@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'https://time-table-4qlh.onrender.com',
+    baseURL: 'https://schedule-kappa-eight.vercel.app/',
     headers: {
         'Content-Type': 'application/json',
     },
