@@ -438,27 +438,43 @@ export function ReviewsPage({ user, onBack }) {
               </p>
             </div>
           </div>
-        </div>
-      </header>
+</header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* [왼쪽] 강의 검색 및 목록 */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-[80vh] flex flex-col">
-            <h2 className="text-lg font-semibold mb-4">강의 검색</h2>
+            {/* [왼쪽] 강의 검색 및 목록 */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-[80vh] flex flex-col">
+              <h2 className="text-lg font-semibold mb-4">강의 검색</h2>
 
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="강의명 또는 교수명 검색..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+              {/* 검색창 영역 */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-gray-400" />
+                <input
+                    type="text"
+                    placeholder="강의명 또는 교수명 검색..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div> 
+              {/* 👆 말씀하신 </div>는 여기 있습니다! (검색창 닫기) */}
 
+              {/* 리스트 영역 시작 */}
+              <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+                {filteredCourses.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">
+                      {loadingCourses ? "강의 목록 로딩 중..." : "검색 결과가 없습니다."}
+                    </p>
+                ) : (
+                    // 🚀 [렉 방지] 100개만 자르기 로직 적용됨
+                    filteredCourses.slice(0, 100).map((course, index) => {
+
+                      // 학수번호 및 평점 계산 로직
+                      const baseId = course.id.includes('-') ? course.id.split('-')[0] : course.id;
+                      const s = summaryMap[baseId] || { count: 0, averageRating: 0 };
+                      const avgRating = Number(s.averageRating || 0).toFixed(1);
+                      const count = s.count;
             <div className="flex-1 overflow-y-auto space-y-2 pr-2">
               {filteredCourses.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">

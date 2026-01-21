@@ -16,9 +16,9 @@ interface LectureRepository : JpaRepository<Lecture, Long> {
     fun findAllByIdIn(ids: List<String>): List<Lecture>
 
     // 4. 단건 조회용
-    // 4. 단건 조회용
+// 4. 단건 조회용
     fun findFirstById(id: String): Lecture?
 
-    // 5. prefix 조회용 (Base Id로 찾기 위함)
+    // 5. prefix 조회용 (Base Id로 찾기 위함) -> 🚀 이 함수가 필요해서 final을 선택합니다.
     fun findFirstByIdStartingWith(id: String): Lecture?
 }

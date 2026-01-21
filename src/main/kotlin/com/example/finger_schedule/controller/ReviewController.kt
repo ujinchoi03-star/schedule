@@ -205,8 +205,9 @@ class ReviewController(
                 createdAt = review.createdAt, likesCount = review.likesCount, commentsCount = review.commentsCount,
                 likedByUser = if (userId != null) likeRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
                 scrapedByUser = if (userId != null) scrapRepository.findByReviewIdAndUserId(review.id, userId).isNotEmpty() else false,
-                lectureName = lecture?.name,
-                professor = review.professor ?: lecture?.professor, // 🚀 리뷰에 저장된 교수님 이름 우선 사용
+lectureName = lecture?.name,
+                // 🚀 [수정] 리뷰에 저장된 교수님 이름을 우선 사용하고, 없으면 강의 정보에서 가져옴
+                professor = review.professor ?: lecture?.professor,
                 isAnonymous = review.isAnonymous ?: false
             )
         }
